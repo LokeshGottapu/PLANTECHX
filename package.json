@@ -1,0 +1,21 @@
+{
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "morgan": "^1.10.0",
+    "mysql": "^2.18.1",
+    "util": "^0.12.5"
+  },
+  "name": "plantech",
+  "version": "1.0.0",
+  "main": "app_server.js",
+  "scripts": {
+    "start": "node app_server.js",
+    "dev": "nodemon app_server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}
