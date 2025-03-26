@@ -14,13 +14,12 @@ const query = util.promisify(pool.query).bind(pool);
 
 module.exports = {
 
-    getUsers: async (OFFEST, LIMT) => {
+    getUsers: async () => {
 
         try {
 
             var sql = ` SELECT * 
-                        FROM users 
-                        LIMIT ${OFFEST}, ${LIMT}`;
+                        FROM users `;
 
             const result = await query(sql);
             return result;

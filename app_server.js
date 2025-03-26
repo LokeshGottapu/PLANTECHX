@@ -19,6 +19,25 @@ app.use(
 
 app.get("/users", async (req, res) => {
 
+    try {
+
+        const users = await api_model.getUsers();
+        console.log(users);
+
+        res.status(200).json({
+            users: users
+        });
+
+    }
+    catch (err) {
+        console.error(`Error in fetching users:`, err);
+        res.status(500).json({ message: `An error occured while fetching for users.` });
+    }
+
+});
+
+app.get("/users", async (req, res) => {
+
     let { page, limit } = req.query;
 
     // Convert page & limit to numbers and set defaults
