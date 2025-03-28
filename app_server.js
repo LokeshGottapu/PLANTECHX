@@ -36,39 +36,39 @@ app.get("/users", async (req, res) => {
 
 });
 
-app.get("/users", async (req, res) => {
+// app.get("/users", async (req, res) => {
 
-    let { page, limit } = req.query;
+//     let { page, limit } = req.query;
 
-    // Convert page & limit to numbers and set defaults
-    page = parseInt(page) || 1;  // Default page = 1
-    limit = parseInt(limit) || 5; // Default limit = 5
+//     // Convert page & limit to numbers and set defaults
+//     page = parseInt(page) || 1;  // Default page = 1
+//     limit = parseInt(limit) || 5; // Default limit = 5
 
-    // Calculate start and end index
-    const OFFEST = (page - 1) * limit;
-    const LIMT = OFFEST + limit;
+//     // Calculate start and end index
+//     const OFFEST = (page - 1) * limit;
+//     const LIMT = OFFEST + limit;
 
-    try {
+//     try {
 
-        const users = await api_model.getUsers(OFFEST, LIMT);
-        console.log(users);
+//         const users = await api_model.getUsers(OFFEST, LIMT);
+//         console.log(users);
 
-        // Response with pagination details
-        res.status(200).json({
-            totalUsers: users.length,
-            totalPages: Math.ceil(users.length / limit),
-            currentPage: page,
-            pageSize: limit,
-            users: users
-        });
+//         // Response with pagination details
+//         res.status(200).json({
+//             totalUsers: users.length,
+//             totalPages: Math.ceil(users.length / limit),
+//             currentPage: page,
+//             pageSize: limit,
+//             users: users
+//         });
 
-    }
-    catch (err) {
-        console.error(`Error in fetching users:`, err);
-        res.status(500).json({ message: `An error occured while fetching for users.` });
-    }
+//     }
+//     catch (err) {
+//         console.error(`Error in fetching users:`, err);
+//         res.status(500).json({ message: `An error occured while fetching for users.` });
+//     }
 
-});
+// });
 
 app.post("/user", async (req, res) => {
 
@@ -143,7 +143,7 @@ app.put("/users/:userId", async (req, res) => {
     try {
 
         let userData = req.body;
-        
+
         Object.keys(userData).forEach(key => {
             if (typeof userData[key] === "string") {
                 userData[key] = userData[key].trim();

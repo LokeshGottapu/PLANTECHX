@@ -2,13 +2,12 @@ require("dotenv").config();
 const mysql = require("mysql2");
 const util = require("util");
 
-const pool = mysql.createConnection({
+const pool = mysql.createPool({
     host: process.env.MYSQL_HOST,
     user: process.env.MYSQL_USER,
     password: process.env.MYSQL_PASSWORD,
     database: process.env.MYSQL_DATABASE
 });
-
 const query = util.promisify(pool.query).bind(pool);
 
 
@@ -35,16 +34,10 @@ module.exports = {
 
         try {
 
-            var sql = `INSERT INTO users (`;
+            var sql = `INSERT INTO users (${fields.map(field => field.key).join(", ")}) 
+                        VALUES (${values.map(() => '?').join(", ")})`;
 
-            fields.forEach(function fieldsFunction(value) {
-                sql += value.key + `, `;
-            });
-
-            sql = sql.slice(0, sql.length - 2);
-            sql += `) VALUES ?`;
-
-            const result = await query(sql, [[values]]);
+            const result = await query(sql, values);
             return result;
 
         } catch (err) {
@@ -60,9 +53,9 @@ module.exports = {
 
             var sql = ` SELECT * 
                             FROM users 
-                            WHERE userId = ${userId} `;
+                            WHERE userId = ? `;
 
-            const result = await query(sql);
+            const result = await query(sql, [userId]);
             return result;
 
         } catch (err) {
@@ -97,9 +90,9 @@ module.exports = {
         try {
 
             var sql = ` DELETE FROM users 
-                        WHERE userId = ${userId} `;
+                        WHERE userId = ? `;
 
-            const result = await query(sql);
+            const result = await query(sql, [userId]);
             return result;
 
         } catch (err) {
