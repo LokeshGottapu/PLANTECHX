@@ -181,6 +181,30 @@ app.delete("/users/:userId", authenticateToken, authorizeRole('admin'), async (r
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+
+const startServer = async (port) => {
+    try {
+        await new Promise((resolve, reject) => {
+            const server = app.listen(port)
+                .once('listening', () => {
+                    console.log(`Server is running on port ${port}`);
+                    resolve();
+                })
+                .once('error', (err) => {
+                    if (err.code === 'EADDRINUSE') {
+                        console.log(`Port ${port} is busy, trying port ${port + 1}`);
+                        server.close();
+                        startServer(port + 1);
+                    } else {
+                        console.error('Server error:', err);
+                        reject(err);
+                    }
+                });
+        });
+    } catch (err) {
+        console.error('Failed to start server:', err);
+        process.exit(1);
+    }
+};
+
+startServer(PORT);
