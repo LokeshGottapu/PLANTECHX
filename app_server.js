@@ -22,6 +22,15 @@ app.use(
     })
 );
 
+// Helper function to trim user input
+const trimUserData = (userData) => {
+    Object.keys(userData).forEach(key => {
+        if (typeof userData[key] === "string") {
+            userData[key] = userData[key].trim();
+        }
+    });
+    return userData;
+};
 
 // Auth routes
 app.post('/auth/register', register);
@@ -40,37 +49,17 @@ app.post('/upload/question-bank', authenticateToken, authorizeRole('faculty'), u
 app.post('/upload/report', authenticateToken, authorizeRole('admin'), upload.array('files'), handleReportUpload);
 app.delete('/files', authenticateToken, authorizeRole('admin'), deleteFile);
 
-// Protected routes
-app.get("/users", authenticateToken, authorizeRole('admin'), async (req, res) => {
-
-    try {
-
-        const users = await api_model.getUsers();
-        console.log(users);
-
-        res.status(200).json({
-            users: users
-        });
-
-    }
-    catch (err) {
-        console.error(`Error in fetching users:`, err);
-        res.status(500).json({ message: `An error occured while fetching for users.` });
-    }
-
-});
-
-// Pagination implementation for users route
+// Users routes
 app.get("/users", authenticateToken, authorizeRole('admin'), async (req, res) => {
     let { page, limit } = req.query;
     page = parseInt(page) || 1;  // Default page = 1
     limit = parseInt(limit) || 5; // Default limit = 5
     const offset = (page - 1) * limit;
-    
+
     try {
         const users = await api_model.getUsers(offset, limit);
         const totalUsers = await api_model.getTotalUsers();
-        
+
         res.status(200).json({
             totalUsers,
             totalPages: Math.ceil(totalUsers / limit),
@@ -86,23 +75,10 @@ app.get("/users", authenticateToken, authorizeRole('admin'), async (req, res) =>
 });
 
 app.post("/user", async (req, res) => {
-
-    let userData = req.body;
-
+    let userData = trimUserData(req.body);
     try {
-
-        Object.keys(userData).forEach(key => {
-            if (typeof userData[key] === "string") {
-                userData[key] = userData[key].trim();
-            }
-        });
-
         var fields = Object.entries(userData).map(([key, value]) => ({ key, value }));
-
-        var values = [];
-        fields.forEach(function valuesFunction(value) {
-            values.push(value.value);
-        });
+        var values = fields.map(field => field.value);
 
         const user = await api_model.postUser(fields, values);
         console.log("user:", user);
@@ -117,13 +93,11 @@ app.post("/user", async (req, res) => {
 
     } catch (err) {
         console.error(`Failed to add user:`, err);
-        res.status(500).json({ message: "An error occured while adding a new user" });
+        res.status(500).json({ message: "An error occurred while adding a new user" });
     }
-
 });
 
 app.get("/users/:userId", authenticateToken, async (req, res) => {
-
     let userId = Number(req.params.userId);
 
     if (!Number.isInteger(userId)) {
@@ -131,7 +105,6 @@ app.get("/users/:userId", authenticateToken, async (req, res) => {
     }
 
     try {
-
         const user = await api_model.getUser(userId);
         console.log("User Data:", user);
 
@@ -144,11 +117,9 @@ app.get("/users/:userId", authenticateToken, async (req, res) => {
         console.error("Database query error:", err);
         res.status(500).json({ message: "Internal Server Error" });
     }
-
 });
 
 app.put("/users/:userId", authenticateToken, authorizeRole('admin'), async (req, res) => {
-
     let userId = Number(req.params.userId);
 
     if (!Number.isInteger(userId)) {
@@ -156,30 +127,15 @@ app.put("/users/:userId", authenticateToken, authorizeRole('admin'), async (req,
     }
 
     try {
-
-        let userData = req.body;
-
-        Object.keys(userData).forEach(key => {
-            if (typeof userData[key] === "string") {
-                userData[key] = userData[key].trim();
-            }
-        });
-
+        let userData = trimUserData(req.body);
         var fields = Object.entries(userData).map(([key, value]) => ({ key, value }));
-
-        var values = [];
-        // var VALUES = [];
-
-        fields.forEach(function valuesFunction(value) {
-            values.push(value.value);
-        });
-        // values.push(VALUES);
+        var values = fields.map(field => field.value);
 
         const putUser = await api_model.putUser(userId, fields, values);
 
         if (putUser.affectedRows !== 0) {
-            console.log(`User wth ID: ${userId} updated successfully`);
-            return res.status(200).json({ message: `User wth ID: ${userId} updated successfully` });
+            console.log(`User with ID: ${userId} updated successfully`);
+            return res.status(200).json({ message: `User with ID: ${userId} updated successfully` });
         } else {
             return res.status(404).json({ message: "User not found" });
         }
@@ -188,11 +144,9 @@ app.put("/users/:userId", authenticateToken, authorizeRole('admin'), async (req,
         console.error(`Error updating user with ID ${userId}:`, err);
         return res.status(500).json({ message: "An error occurred while updating the user." });
     }
-
 });
 
 app.delete("/users/:userId", authenticateToken, authorizeRole('admin'), async (req, res) => {
-
     let userId = Number(req.params.userId);
 
     if (!Number.isInteger(userId)) {
@@ -200,7 +154,6 @@ app.delete("/users/:userId", authenticateToken, authorizeRole('admin'), async (r
     }
 
     try {
-
         const deleteUser = await api_model.deleteUser(userId);
 
         if (deleteUser.affectedRows !== 0) {
@@ -211,14 +164,10 @@ app.delete("/users/:userId", authenticateToken, authorizeRole('admin'), async (r
         }
 
     } catch (err) {
-        console.error(`Error deleting blog with ID ${userId}:`, err);
-        res.status(500).json({ message: "An error occurred while deleting the blog" });
+        console.error(`Error deleting user with ID ${userId}:`, err);
+        res.status(500).json({ message: "An error occurred while deleting the user" });
     }
-
 });
-
-
-
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
