@@ -1,5 +1,7 @@
 const examModel = require('../models/examModel');
 const { validationResult } = require('express-validator');
+const QuestionGenerator = require('../services/QuestionGenerator');
+const Question = require('../models/Question');
 
 module.exports = {
     // Exam Management
@@ -48,23 +50,56 @@ module.exports = {
     addQuestion: async (req, res) => {
         try {
             const { examId, questionText, questionType, options, correctAnswer, difficultyLevel, topic } = req.body;
-            const result = await examModel.addQuestion({
-                examId,
-                questionText,
-                questionType,
+
+            const question = await Question.create({
+                exam_id: examId,
+                question_text: questionText,
                 options,
-                correctAnswer,
-                difficultyLevel,
-                topic,
-                aiGenerated: false
+                correct_answer: correctAnswer,
+                marks: req.body.marks || 5,
+                topic
             });
+
             res.status(201).json({
                 message: 'Question added successfully',
-                questionId: result.insertId
+                questionId: question.id
             });
         } catch (error) {
             console.error('Add question error:', error);
             res.status(500).json({ message: 'Error adding question' });
+        }
+    },
+
+    // AI Question Generation
+    generateQuestions: async (req, res) => {
+        try {
+            const { examId, content, topic, numberOfQuestions } = req.body;
+
+            if (!content || !topic || !examId) {
+                return res.status(400).json({
+                    message: 'Content, topic, and examId are required'
+                });
+            }
+
+            const generatedQuestions = await QuestionGenerator.generateAndSaveQuestions(
+                content,
+                examId,
+                topic,
+                numberOfQuestions || 5
+            );
+
+            const savedQuestions = await Question.bulkCreate(generatedQuestions);
+
+            res.status(201).json({
+                message: 'Questions generated and saved successfully',
+                questions: savedQuestions
+            });
+        } catch (error) {
+            console.error('Question generation error:', error);
+            res.status(500).json({
+                message: 'Error generating questions',
+                error: error.message
+            });
         }
     },
 

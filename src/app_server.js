@@ -37,6 +37,20 @@ const trimUserData = (userData) => {
 app.post('/auth/register', register);
 app.post('/auth/login', login);
 
+// College Management Routes
+app.post('/colleges', authenticateToken, authorizeRole('admin'), collegeController.createCollege);
+app.get('/colleges', authenticateToken, collegeController.getColleges);
+app.put('/colleges/:collegeId/approve', authenticateToken, authorizeRole('admin'), collegeController.approveCollege);
+app.post('/colleges/admin', authenticateToken, authorizeRole('admin'), collegeController.assignCollegeAdmin);
+app.post('/colleges/exam', authenticateToken, authorizeRole('admin'), collegeController.assignExamToCollege);
+app.post('/colleges/lsrw-access', authenticateToken, authorizeRole('admin'), collegeController.grantLSRWAccess);
+app.get('/colleges/:collegeId/performance', authenticateToken, collegeController.getCollegePerformance);
+
+// Exam Management Routes
+app.post('/exams', authenticateToken, authorizeRole('faculty'), examController.createExam);
+app.post('/exams/:examId/questions', authenticateToken, authorizeRole('faculty'), examController.addQuestion);
+app.post('/exams/:examId/submit', authenticateToken, examController.submitExam);
+
 // Faculty Analytics and Reports
 app.get('/faculty/:facultyId/performance', authenticateToken, authorizeRole('admin'), getFacultyPerformance);
 app.get('/faculty/lsrw/:examId', authenticateToken, authorizeRole('faculty'), getLSRWAnalytics);
