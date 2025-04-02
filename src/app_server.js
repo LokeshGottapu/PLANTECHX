@@ -1,9 +1,10 @@
-const api_model = require("./model.js");
-const { authenticateToken, authorizeRole } = require('./middleware/auth');
-const { register, login } = require('./controllers/authController');
-const { handleUserUpload, handleQuestionBankUpload, handleReportUpload, deleteFile } = require('./controllers/fileController');
-const { getFacultyPerformance, getLSRWAnalytics, getBatchComparison, generatePDFReport, generateExcelReport } = require('./controllers/facultyController');
-const upload = require('./middleware/multerConfig');
+const api_model = require("../model.js");
+const { authenticateToken, authorizeRole } = require('../middleware/auth.js');
+const { register, login } = require('../controllers/authController.js');
+const { handleUserUpload, handleQuestionBankUpload, handleReportUpload, deleteFile } = require('../controllers/fileController.js');
+const { getFacultyPerformance, getLSRWAnalytics, getBatchComparison, generatePDFReport, generateExcelReport } = require('../controllers/facultyController.js');
+const upload = require('../middleware/multerConfig.js');
+const { sequelize } = require('../models/index.js');
 require('dotenv').config();
 
 const express = require("express");
@@ -48,6 +49,16 @@ app.post('/upload/user', authenticateToken, upload.array('files'), handleUserUpl
 app.post('/upload/question-bank', authenticateToken, authorizeRole('faculty'), upload.array('files'), handleQuestionBankUpload);
 app.post('/upload/report', authenticateToken, authorizeRole('admin'), upload.array('files'), handleReportUpload);
 app.delete('/files', authenticateToken, authorizeRole('admin'), deleteFile);
+
+// Sync database
+sequelize.sync({ alter: true })
+  .then(() => {
+    console.log('Database synchronized successfully');
+  })
+  .catch((error) => {
+    console.error('Error synchronizing database:', error);
+  });
+
 
 // Users routes
 app.get("/users", authenticateToken, authorizeRole('admin'), async (req, res) => {
