@@ -1,0 +1,23 @@
+{
+  "development": {
+    "username": "root",
+    "password": "Lasya@2003",
+    "database": "plantechx",
+    "host": "localhost",
+    "dialect": "mysql"
+  },
+  "test": {
+    "username": "root",
+    "password": "Lasya@2003",
+    "database": "plantechx_test",
+    "host": "localhost",
+    "dialect": "mysql"
+  },
+  "production": {
+    "username": "root",
+    "password": "Lasya@2003",
+    "database": "plantechx_production",
+    "host": "localhost",
+    "dialect": "mysql"
+  }
+}

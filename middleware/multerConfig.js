@@ -1,4 +1,16 @@
 const multer = require('multer');
+const crypto = require('crypto');
+const path = require('path');
+const FileType = require('file-type');
+const ClamScan = require('clamscan');
+
+// Initialize ClamAV scanner
+const ClamAV = new ClamScan({
+    removeInfected: true,
+    quarantineInfected: './quarantine/',
+    scanLog: './scan.log',
+    debugMode: false
+});
 
 // Configure multer storage
 const storage = multer.memoryStorage(); // Use memory storage for S3 uploads
@@ -10,8 +22,28 @@ const fileSizeLimits = {
     'reports': 15 * 1024 * 1024 // 15MB
 };
 
-// File filter for allowed file types
-const fileFilter = (req, file, cb) => {
+// Validate file content type
+async function validateFileType(buffer) {
+    const fileInfo = await FileType.fromBuffer(buffer);
+    return fileInfo ? fileInfo.mime : null;
+}
+
+// Scan file for malware
+async function scanFile(buffer) {
+    try {
+        const tempFilePath = path.join('./temp', crypto.randomBytes(16).toString('hex'));
+        require('fs').writeFileSync(tempFilePath, buffer);
+        const {isInfected} = await ClamAV.isInfected(tempFilePath);
+        require('fs').unlinkSync(tempFilePath);
+        return !isInfected;
+    } catch (error) {
+        console.error('Malware scan error:', error);
+        return false;
+    }
+}
+
+// Enhanced file filter with security checks
+const fileFilter = async (req, file, cb) => {
     // Define allowed file types for different upload types
     const allowedTypes = {
         'user-uploads': ['text/csv', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
@@ -26,7 +58,9 @@ const fileFilter = (req, file, cb) => {
         return;
     }
 
-    if (!allowedTypes[uploadType].includes(file.mimetype)) {
+    // Validate actual file content type
+    const actualMimeType = await validateFileType(file.buffer);
+    if (!actualMimeType || !allowedTypes[uploadType].includes(actualMimeType)) {
         cb(new Error(`Invalid file type. Allowed types for ${uploadType}: ${allowedTypes[uploadType].join(', ')}`), false);
         return;
     }
@@ -36,6 +70,17 @@ const fileFilter = (req, file, cb) => {
         cb(new Error(`File size exceeds limit of ${sizeLimit / (1024 * 1024)}MB`), false);
         return;
     }
+
+    // Scan for malware
+    const isSafe = await scanFile(file.buffer);
+    if (!isSafe) {
+        cb(new Error('File failed security scan'), false);
+        return;
+    }
+
+    // Calculate file hash for integrity check
+    const fileHash = crypto.createHash('sha256').update(file.buffer).digest('hex');
+    file.hash = fileHash;
 
     cb(null, true);
 };
