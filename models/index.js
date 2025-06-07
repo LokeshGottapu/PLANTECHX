@@ -5,6 +5,7 @@ const Exam = require('./Exam');
 const Question = require('./Question');
 const UserResult = require('./UserResult');
 const Faculty = require('./Faculty');
+const FacultyDepartment = require('./FacultyDepartment');
 
 // Define associations
 User.hasMany(Exam, { foreignKey: 'created_by' });
@@ -26,6 +27,10 @@ Faculty.belongsTo(User, { foreignKey: 'user_id' });
 College.hasMany(Faculty, { foreignKey: 'college_id' });
 Faculty.belongsTo(College, { foreignKey: 'college_id' });
 
+// Define FacultyDepartment associations
+Faculty.hasMany(FacultyDepartment, { foreignKey: 'faculty_id' });
+FacultyDepartment.belongsTo(Faculty, { foreignKey: 'faculty_id' });
+
 module.exports = {
   sequelize,
   User,
@@ -33,5 +38,6 @@ module.exports = {
   Exam,
   Question,
   UserResult,
-  Faculty
+  Faculty,
+  FacultyDepartment
 };

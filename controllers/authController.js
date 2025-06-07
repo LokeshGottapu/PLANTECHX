@@ -77,21 +77,33 @@ const login = async (req, res) => {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
-        // Generate JWT token
+        // Generate JWT token with configurable expiration
         const token = jwt.sign(
-            { userId: user.userId, role: user.role },
+            { 
+                userId: user.userId, 
+                role: user.role,
+                email: user.email
+            },
             process.env.JWT_SECRET,
-            { expiresIn: '1h' }
+            { expiresIn: process.env.JWT_EXPIRE || '24h' }
         );
 
+        // Get token expiration time
+        const decoded = jwt.decode(token);
+        const expiresAt = new Date(decoded.exp * 1000).toISOString();
+
         res.json({
+            status: 'success',
             message: 'Login successful',
-            token,
-            user: {
-                userId: user.userId,
-                username: user.username,
-                email: user.email,
-                role: user.role
+            data: {
+                token,
+                expiresAt,
+                user: {
+                    userId: user.userId,
+                    username: user.username,
+                    email: user.email,
+                    role: user.role
+                }
             }
         });
     } catch (error) {

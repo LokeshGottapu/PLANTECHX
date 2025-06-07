@@ -1,10 +1,13 @@
 const { query } = require('../model');
-const { Configuration, OpenAIApi } = require('openai');
 
-const configuration = new Configuration({
-    apiKey: process.env.OPENAI_API_KEY
-});
-const openai = new OpenAIApi(configuration);
+// Initialize OpenAI client if API key is available
+let openai = null;
+if (process.env.OPENAI_API_KEY) {
+    const OpenAI = require('openai');
+    openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY
+    });
+}
 
 module.exports = {
     // Exam Management

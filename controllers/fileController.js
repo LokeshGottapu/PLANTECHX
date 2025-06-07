@@ -15,21 +15,40 @@ const handleUserUpload = async (req, res) => {
             return res.status(400).json({ message: 'No files uploaded' });
         }
 
+        // Validate AWS S3 configuration
+        if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY || !process.env.AWS_REGION) {
+            throw new Error('AWS S3 configuration is incomplete');
+        }
+
         const uploadResults = await Promise.all(
             req.files.map(async (file) => {
-                const fileKey = generateFileKey(file, 'user-uploads');
-                const fileUrl = await uploadToS3(file, bucketConfig.userUploads, fileKey);
-                return { fileName: file.originalname, fileUrl };
+                try {
+                    const fileKey = generateFileKey(file, 'user-uploads');
+                    const fileUrl = await uploadToS3(file, bucketConfig.userUploads, fileKey);
+                    return { fileName: file.originalname, fileUrl, status: 'success' };
+                } catch (uploadError) {
+                    console.error(`Error uploading ${file.originalname}:`, uploadError);
+                    return {
+                        fileName: file.originalname,
+                        status: 'error',
+                        error: uploadError.code === 'NoSuchBucket' ? 'Invalid bucket configuration' : 'Upload failed'
+                    };
+                }
             })
         );
 
-        res.status(200).json({
-            message: 'Files uploaded successfully',
+        const hasErrors = uploadResults.some(result => result.status === 'error');
+        res.status(hasErrors ? 207 : 200).json({
+            message: hasErrors ? 'Some files failed to upload' : 'Files uploaded successfully',
             files: uploadResults
         });
     } catch (error) {
         console.error('Upload error:', error);
-        res.status(500).json({ message: 'Error uploading files' });
+        res.status(500).json({
+            message: 'Error uploading files',
+            error: error.message === 'AWS S3 configuration is incomplete' ? 
+                'Server configuration error' : 'Internal server error'
+        });
     }
 };
 

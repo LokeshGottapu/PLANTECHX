@@ -61,16 +61,106 @@
 ### Get LSRW Performance
 - **Method:** GET
 - **Endpoint:** `/api/analytics/lsrw-performance/:userId/:examId`
-- **Response:**
+- **Description:** Retrieve detailed LSRW (Listening, Speaking, Reading, Writing) performance metrics for a specific user and exam
+- **Parameters:**
+  - `userId` (required): The ID of the user
+  - `examId` (required): The ID of the exam
+- **Query Parameters:**
+  - `skillType` (optional): Filter by specific skill (listening, speaking, reading, writing)
+  - `startDate` (optional): Start date for analysis period (YYYY-MM-DD)
+  - `endDate` (optional): End date for analysis period (YYYY-MM-DD)
+- **Success Response (200 OK):**
   ```json
-  [
-    {
-      "skill_type": "string",
-      "average_score": "number",
-      "total_assessments": "number"
+  {
+    "userId": 12345,
+    "examId": 67890,
+    "overallScore": 85.5,
+    "skills": [
+      {
+        "skill_type": "listening",
+        "average_score": 88.5,
+        "total_assessments": 10,
+        "improvement_rate": 15.2,
+        "strengths": ["comprehension", "note-taking"],
+        "areas_for_improvement": ["accent recognition"]
+      },
+      {
+        "skill_type": "speaking",
+        "average_score": 82.0,
+        "total_assessments": 8,
+        "improvement_rate": 10.5,
+        "strengths": ["fluency", "pronunciation"],
+        "areas_for_improvement": ["grammar usage"]
+      }
+    ],
+    "progressTrend": {
+      "last_month": 12.5,
+      "last_quarter": 25.0
     }
-  ]
+  }
   ```
+- **Error Responses:**
+  - **400 Bad Request:**
+    ```json
+    {
+      "error": "Invalid parameters",
+      "details": "Invalid date range specified"
+    }
+    ```
+  - **404 Not Found:**
+    ```json
+    {
+      "error": "Resource not found",
+      "details": "No LSRW data found for the specified user and exam"
+    }
+    ```
+
+### Get LSRW Progress Timeline
+- **Method:** GET
+- **Endpoint:** `/api/analytics/lsrw-timeline/:userId`
+- **Description:** Get historical progress of LSRW skills over time
+- **Parameters:**
+  - `userId` (required): The ID of the user
+- **Query Parameters:**
+  - `period` (optional): Analysis period (week, month, quarter, year)
+  - `skillType` (optional): Specific skill to analyze
+- **Success Response (200 OK):**
+  ```json
+  {
+    "userId": 12345,
+    "period": "month",
+    "timeline": [
+      {
+        "date": "2023-11-01",
+        "listening": 75.5,
+        "speaking": 68.0,
+        "reading": 82.5,
+        "writing": 77.0
+      },
+      {
+        "date": "2023-11-15",
+        "listening": 78.5,
+        "speaking": 72.0,
+        "reading": 85.0,
+        "writing": 79.5
+      }
+    ],
+    "improvement_summary": {
+      "listening": "+3.0",
+      "speaking": "+4.0",
+      "reading": "+2.5",
+      "writing": "+2.5"
+    }
+  }
+  ```
+- **Error Responses:**
+  - **400 Bad Request:**
+    ```json
+    {
+      "error": "Invalid period",
+      "details": "Period must be one of: week, month, quarter, year"
+    }
+    ```
 
 ## Exam Success Analytics
 

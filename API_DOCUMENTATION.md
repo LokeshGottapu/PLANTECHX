@@ -8,39 +8,74 @@ Endpoints related to user authentication and authorization.
 #### Register User
 - **Method:** POST
 - **Endpoint:** `/auth/register`
+- **Description:** Register a new user account
 - **Request Body:**
   ```json
   {
-    "username": "string",
-    "password": "string",
-    "email": "string"
+    "username": "john_doe",
+    "password": "SecurePass123!",
+    "email": "john.doe@example.com"
   }
   ```
-- **Response:**
+- **Success Response (200 OK):**
   ```json
   {
     "message": "User registered successfully",
-    "userId": "number"
+    "userId": 12345
   }
   ```
+- **Error Responses:**
+  - **400 Bad Request:**
+    ```json
+    {
+      "error": "Validation failed",
+      "details": {
+        "username": "Username must be at least 3 characters long",
+        "password": "Password must contain at least 8 characters, one uppercase, one lowercase, and one number",
+        "email": "Invalid email format"
+      }
+    }
+    ```
+  - **409 Conflict:**
+    ```json
+    {
+      "error": "Username or email already exists"
+    }
+    ```
 
 #### Login User
 - **Method:** POST
 - **Endpoint:** `/auth/login`
+- **Description:** Authenticate user and receive access token
 - **Request Body:**
   ```json
   {
-    "username": "string",
-    "password": "string"
+    "username": "john_doe",
+    "password": "SecurePass123!"
   }
   ```
-- **Response:**
+- **Success Response (200 OK):**
   ```json
   {
-    "token": "string",
-    "userId": "number"
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "userId": 12345,
+    "expiresIn": 3600
   }
   ```
+- **Error Responses:**
+  - **401 Unauthorized:**
+    ```json
+    {
+      "error": "Invalid username or password"
+    }
+    ```
+  - **429 Too Many Requests:**
+    ```json
+    {
+      "error": "Too many login attempts. Please try again in 15 minutes",
+      "retryAfter": 500
+    }
+    ```
 
 ## College Management
 
@@ -158,7 +193,7 @@ Endpoints related to user authentication and authorization.
 - **Method:** GET
 - **Endpoint:** `/api/exams/performance/:userId`
 - **Query Parameters:**
-  - examType (optional): Filter by exam type
+  - examName (optional): Filter by exam name
   - startDate (optional): Filter by start date
   - endDate (optional): Filter by end date
 - **Response:**
@@ -169,7 +204,7 @@ Endpoints related to user authentication and authorization.
       "exam_type": "string",
       "score": "number",
       "completion_time": "number",
-      "completed_at": "string"
+      "completed_at": "number"
     }
   ]
   ```
@@ -282,6 +317,50 @@ Endpoints related to user authentication and authorization.
 ## Error Responses
 
 All endpoints may return the following error responses:
+
+### Common Error Responses
+
+#### 401 Unauthorized
+```json
+{
+  "error": "Authentication required",
+  "message": "Please provide a valid authentication token"
+}
+```
+
+#### 403 Forbidden
+```json
+{
+  "error": "Access denied",
+  "message": "You do not have permission to perform this action"
+}
+```
+
+#### 404 Not Found
+```json
+{
+  "error": "Resource not found",
+  "message": "The requested resource could not be found"
+}
+```
+
+#### 500 Internal Server Error
+```json
+{
+  "error": "Internal server error",
+  "message": "An unexpected error occurred. Please try again later",
+  "requestId": "req_123abc456def"
+}
+```
+
+#### Rate Limiting
+```json
+{
+  "error": "Rate limit exceeded",
+  "message": "Too many requests. Please try again later",
+  "retryAfter": 60
+}
+```
 
 ### Authentication Errors
 ```json
