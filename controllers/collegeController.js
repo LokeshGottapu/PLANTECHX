@@ -1,40 +1,104 @@
+const mysql = require('mysql2/promise');
+const { dbConfig } = require('../config/database');
 const collegeModel = require('../models/collegeModel');
 
 module.exports = {
     // College Management
     createCollege: async (req, res) => {
+        let connection;
         try {
-            const { name, address } = req.body;
-            const result = await collegeModel.createCollege({ name, address });
+            const { name, address, contact_email, contact_phone } = req.body;
+
+            if (!name || !address || !contact_email) {
+                return res.status(400).json({ message: 'Missing required fields' });
+            }
+
+            // Email format validation
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(contact_email)) {
+                return res.status(400).json({ message: 'Invalid email format' });
+            }
+
+            connection = await mysql.createConnection(dbConfig);
+
+            // Check if college already exists
+            const [existingColleges] = await connection.execute(
+                'SELECT * FROM colleges WHERE name = ?',
+                [name]
+            );
+
+            if (existingColleges.length > 0) {
+                return res.status(409).json({ message: 'College already exists' });
+            }
+
+            const [result] = await connection.execute(
+                'INSERT INTO colleges (name, address, contact_email, contact_phone, status) VALUES (?, ?, ?, ?, ?)',
+                [name, address, contact_email, contact_phone, 'pending']
+            );
+
             res.status(201).json({
                 message: 'College created successfully',
                 collegeId: result.insertId
             });
         } catch (error) {
-            console.error('Create college error:', error);
+            console.error('Error creating college:', error);
             res.status(500).json({ message: 'Error creating college' });
+        } finally {
+            if (connection) {
+                await connection.end();
+            }
         }
     },
 
     approveCollege: async (req, res) => {
+        let connection;
         try {
             const { collegeId } = req.params;
-            await collegeModel.approveCollege(collegeId);
-            res.json({ message: 'College approved successfully' });
+
+            connection = await mysql.createConnection(dbConfig);
+
+            const [result] = await connection.execute(
+                'UPDATE colleges SET status = ? WHERE id = ?',
+                ['approved', collegeId]
+            );
+
+            if (result.affectedRows === 0) {
+                return res.status(404).json({ message: 'College not found' });
+            }
+
+            res.json({
+                message: 'College approved successfully'
+            });
         } catch (error) {
-            console.error('Approve college error:', error);
+            console.error('Error approving college:', error);
             res.status(500).json({ message: 'Error approving college' });
+        } finally {
+            if (connection) {
+                await connection.end();
+            }
         }
     },
 
     getColleges: async (req, res) => {
+        let connection;
         try {
-            const { status } = req.query;
-            const colleges = await collegeModel.getColleges({ status });
-            res.json(colleges);
+            connection = await mysql.createConnection(dbConfig);
+
+            const [colleges] = await connection.execute(
+                'SELECT * FROM colleges'
+            );
+
+            res.json({
+                message: 'Colleges retrieved successfully',
+                colleges
+            });
         } catch (error) {
-            console.error('Get colleges error:', error);
-            res.status(500).json({ message: 'Error fetching colleges' });
+            console.error('Error retrieving colleges:', error);
+            res.status(500).json({ message: 'Error retrieving colleges' });
+        } finally {
+            if (connection) {
+                await connection.end();
+            }
         }
     },
 

@@ -2,80 +2,37 @@ const jwt = require('jsonwebtoken');
 
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
-    
-    if (!authHeader) {
-        return res.status(401).json({ 
-            status: 'error',
-            code: 'AUTH_HEADER_MISSING',
-            message: 'Authorization header is required'
-        });
-    }
-
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+    const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
-        return res.status(401).json({ 
-            status: 'error',
-            code: 'TOKEN_MISSING',
-            message: 'Access token is required'
-        });
+        return res.status(401).json({ message: 'Authentication token is required' });
     }
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        
-        // Check token expiration
-        if (decoded.exp && Date.now() >= decoded.exp * 1000) {
-            return res.status(401).json({
-                status: 'error',
-                code: 'TOKEN_EXPIRED',
-                message: 'Token has expired'
-            });
-        }
-
         req.user = decoded;
         next();
-    } catch (err) {
-        if (err.name === 'TokenExpiredError') {
-            return res.status(401).json({
-                status: 'error',
-                code: 'TOKEN_EXPIRED',
-                message: 'Token has expired'
-            });
-        } else if (err.name === 'JsonWebTokenError') {
-            return res.status(403).json({
-                status: 'error',
-                code: 'TOKEN_INVALID',
-                message: 'Invalid token format or signature'
-            });
-        }
-        
-        return res.status(403).json({
-            status: 'error',
-            code: 'TOKEN_VERIFICATION_FAILED',
-            message: 'Token verification failed'
-        });
+    } catch (error) {
+        return res.status(403).json({ message: 'Invalid or expired token' });
     }
 };
 
-const ROLE_HIERARCHY = {
-    'master_admin': ['master_admin', 'admin', 'faculty', 'user'],
-    'admin': ['admin', 'faculty', 'user'],
-    'faculty': ['faculty', 'user'],
-    'user': ['user']
-};
-
-const authorizeRole = (requiredRole) => {
+const authorizeRole = (role) => {
     return (req, res, next) => {
         if (!req.user) {
             return res.status(401).json({ message: 'User not authenticated' });
         }
 
-        const userRole = req.user.role;
-        const allowedRoles = ROLE_HIERARCHY[userRole] || [];
+        if (req.user.role === 'master_admin') {
+            return next(); // Master admin has access to everything
+        }
 
-        if (!allowedRoles.includes(requiredRole)) {
-            return res.status(403).json({ message: 'Access denied: Insufficient permissions' });
+        if (typeof role === 'string' && req.user.role !== role) {
+            return res.status(403).json({ message: 'Access denied' });
+        }
+
+        if (Array.isArray(role) && !role.includes(req.user.role)) {
+            return res.status(403).json({ message: 'Access denied' });
         }
 
         next();

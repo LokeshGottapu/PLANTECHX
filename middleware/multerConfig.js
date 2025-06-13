@@ -51,24 +51,12 @@ try {
 
 // Configure multer storage with proper temp file handling
 const storage = multer.diskStorage({
-    destination: async (req, file, cb) => {
-        try {
-            if (!fs.existsSync(tempDir)) {
-                await fs.promises.mkdir(tempDir, { recursive: true });
-            }
-            cb(null, tempDir);
-        } catch (error) {
-            cb(new Error('Failed to create temp directory'));
-        }
+    destination: function (req, file, cb) {
+        cb(null, 'uploads/');
     },
-    filename: (req, file, cb) => {
-        try {
-            const uniqueSuffix = crypto.randomBytes(16).toString('hex');
-            const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
-            cb(null, `${uniqueSuffix}-${sanitizedName}`);
-        } catch (error) {
-            cb(new Error('Failed to generate filename'));
-        }
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
     }
 });
 
@@ -80,92 +68,24 @@ const fileSizeLimits = {
     'profile-images': 2 * 1024 * 1024 // 2MB
 };
 
-// File validation middleware
+// File filter
 const fileFilter = (req, file, cb) => {
-    let tempFilePath = null;
-    let writeStream = null;
-
-    const cleanup = async () => {
-        if (writeStream) {
-            writeStream.end();
-        }
-        if (tempFilePath) {
-            await unlink(tempFilePath).catch(console.error);
-        }
+    // Check file type
+    const allowedTypes = {
+        'user-uploads': ['.csv', '.xlsx', '.xls'],
+        'question-bank': ['.pdf', '.doc', '.docx'],
+        'reports': ['.pdf', '.csv', '.xlsx']
     };
 
-    try {
-        const uploadType = req.params.uploadType || req.path.split('/')[2] || 'user-uploads';
-        
-        if (!mimeTypes[uploadType]) {
-            throw new Error(`Invalid upload type: ${uploadType}`);
-        }
-
-        const sizeLimit = fileSizeLimits[uploadType];
-        if (!file.size) {
-            file.size = 0;
-        }
-
-        if (file.size > sizeLimit) {
-            throw new Error(`File size exceeds limit of ${sizeLimit / (1024 * 1024)}MB`);
-        }
-
-        // Store the file temporarily for validation
-        tempFilePath = path.join(tempDir, `temp-${Date.now()}-${file.originalname}`);
-        writeStream = fs.createWriteStream(tempFilePath);
-        const chunks = [];
-
-    file.stream.on('data', chunk => {
-        chunks.push(chunk);
-        writeStream.write(chunk);
-        file.size += chunk.length;
-
-        if (file.size > sizeLimit) {
-            file.stream.destroy(new Error(`File size exceeds limit of ${sizeLimit / (1024 * 1024)}MB`));
-        }
-    });
-
-    file.stream.on('end', async () => {
-        writeStream.end();
-        const buffer = Buffer.concat(chunks);
-
-        try {
-            // Validate actual file content type
-            const actualMimeType = await validateFileType(tempFilePath);
-            if (!actualMimeType || !mimeTypes[uploadType].includes(actualMimeType)) {
-                await unlink(tempFilePath).catch(console.error);
-                cb(new Error(`Invalid file type. Allowed types for ${uploadType}: ${mimeTypes[uploadType].join(', ')}`), false);
-                return;
-            }
-
-            // Scan for malware
-            if (ClamAV) {
-                const isSafe = await scanFile(tempFilePath);
-                if (!isSafe) {
-                    await unlink(tempFilePath).catch(console.error);
-                    cb(new Error('File failed security scan'), false);
-                    return;
-                }
-            }
-
-            // Calculate file hash for integrity check
-            const fileHash = crypto.createHash('sha256').update(buffer).digest('hex');
-            file.hash = fileHash;
-
-            await unlink(tempFilePath).catch(console.error);
-            cb(null, true);
-        } catch (error) {
-            await unlink(tempFilePath).catch(console.error);
-            console.error('File validation error:', error);
-            cb(error, false);
-        }
-    });
-
-    file.stream.on('error', async (error) => {
-        await cleanup();
-        cb(error, false);
-    });
-});
+    const uploadType = req.path.split('/')[2]; // Get upload type from URL
+    const ext = path.extname(file.originalname).toLowerCase();
+    
+    if (allowedTypes[uploadType] && allowedTypes[uploadType].includes(ext)) {
+        cb(null, true);
+    } else {
+        cb(new Error('Invalid file type'), false);
+    }
+};
 
 // Strict MIME type validation map
 const mimeTypes = {
@@ -239,11 +159,11 @@ async function scanFile(filePath) {
 
 // Configure multer upload settings with enhanced error handling
 const upload = multer({
-    storage,
-    fileFilter,
+    storage: storage,
+    fileFilter: fileFilter,
     limits: {
-        files: 5, // Maximum 5 files per upload
-        fileSize: Math.max(...Object.values(fileSizeLimits)) // Set to largest allowed size
+        fileSize: 15 * 1024 * 1024, // 15MB max file size
+        files: 5 // Maximum 5 files
     }
 });
 

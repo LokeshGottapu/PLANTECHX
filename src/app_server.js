@@ -8,6 +8,7 @@ const { handleUserUpload, handleQuestionBankUpload, handleReportUpload, deleteFi
 const upload = require('../middleware/multerConfig.js');
 const { sequelize } = require('../models/index.js');
 const rateLimit = require('express-rate-limit');
+const { validateUserPerformanceRequest, validateAIQuestionsRequest } = require('../middleware/validation');
 require('dotenv').config();
 
 const express = require("express");
@@ -102,6 +103,8 @@ app.get('/colleges/:collegeId/performance', authenticateToken, collegeController
 app.post('/exams', authenticateToken, authorizeRole('faculty'), examController.createExam);
 app.post('/exams/:examId/questions', authenticateToken, authorizeRole('faculty'), examController.addQuestion);
 app.post('/exams/:examId/submit', authenticateToken, examController.submitExam);
+app.get('/exams/performance/:userId', authenticateToken, validateUserPerformanceRequest, examController.getUserPerformance);
+app.get('/exams/ai-questions', authenticateToken, authorizeRole('faculty'), validateAIQuestionsRequest, examController.generateAIQuestions);
 
 // Faculty Analytics and Reports
 app.get('/faculty/:facultyId/performance', authenticateToken, authorizeRole('admin'), getFacultyPerformance);

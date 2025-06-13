@@ -1,5 +1,6 @@
 const { uploadToS3, deleteFromS3, bucketConfig } = require('../config/s3Config');
 const path = require('path');
+const fs = require('fs').promises;
 
 // Helper function to generate unique file key
 const generateFileKey = (file, uploadType) => {
@@ -15,40 +16,20 @@ const handleUserUpload = async (req, res) => {
             return res.status(400).json({ message: 'No files uploaded' });
         }
 
-        // Validate AWS S3 configuration
-        if (!process.env.AWS_ACCESS_KEY_ID || !process.env.AWS_SECRET_ACCESS_KEY || !process.env.AWS_REGION) {
-            throw new Error('AWS S3 configuration is incomplete');
-        }
+        const uploadedFiles = req.files.map(file => ({
+            filename: file.filename,
+            originalName: file.originalname,
+            size: file.size,
+            path: file.path
+        }));
 
-        const uploadResults = await Promise.all(
-            req.files.map(async (file) => {
-                try {
-                    const fileKey = generateFileKey(file, 'user-uploads');
-                    const fileUrl = await uploadToS3(file, bucketConfig.userUploads, fileKey);
-                    return { fileName: file.originalname, fileUrl, status: 'success' };
-                } catch (uploadError) {
-                    console.error(`Error uploading ${file.originalname}:`, uploadError);
-                    return {
-                        fileName: file.originalname,
-                        status: 'error',
-                        error: uploadError.code === 'NoSuchBucket' ? 'Invalid bucket configuration' : 'Upload failed'
-                    };
-                }
-            })
-        );
-
-        const hasErrors = uploadResults.some(result => result.status === 'error');
-        res.status(hasErrors ? 207 : 200).json({
-            message: hasErrors ? 'Some files failed to upload' : 'Files uploaded successfully',
-            files: uploadResults
+        res.status(200).json({
+            message: 'Files uploaded successfully',
+            files: uploadedFiles
         });
     } catch (error) {
-        console.error('Upload error:', error);
-        res.status(500).json({
-            message: 'Error uploading files',
-            error: error.message === 'AWS S3 configuration is incomplete' ? 
-                'Server configuration error' : 'Internal server error'
-        });
+        console.error('Error handling user upload:', error);
+        res.status(500).json({ message: 'Error processing file upload' });
     }
 };
 
@@ -59,21 +40,22 @@ const handleQuestionBankUpload = async (req, res) => {
             return res.status(400).json({ message: 'No files uploaded' });
         }
 
-        const uploadResults = await Promise.all(
-            req.files.map(async (file) => {
-                const fileKey = generateFileKey(file, 'question-bank');
-                const fileUrl = await uploadToS3(file, bucketConfig.questionBank, fileKey);
-                return { fileName: file.originalname, fileUrl };
-            })
-        );
+        const uploadedFiles = req.files.map(file => ({
+            filename: file.filename,
+            originalName: file.originalname,
+            size: file.size,
+            path: file.path
+        }));
+
+        // TODO: Process question bank files and extract questions
 
         res.status(200).json({
             message: 'Question bank files uploaded successfully',
-            files: uploadResults
+            files: uploadedFiles
         });
     } catch (error) {
-        console.error('Upload error:', error);
-        res.status(500).json({ message: 'Error uploading question bank files' });
+        console.error('Error handling question bank upload:', error);
+        res.status(500).json({ message: 'Error processing question bank upload' });
     }
 };
 
@@ -84,37 +66,40 @@ const handleReportUpload = async (req, res) => {
             return res.status(400).json({ message: 'No files uploaded' });
         }
 
-        const uploadResults = await Promise.all(
-            req.files.map(async (file) => {
-                const fileKey = generateFileKey(file, 'reports');
-                const fileUrl = await uploadToS3(file, bucketConfig.reports, fileKey);
-                return { fileName: file.originalname, fileUrl };
-            })
-        );
+        const uploadedFiles = req.files.map(file => ({
+            filename: file.filename,
+            originalName: file.originalname,
+            size: file.size,
+            path: file.path
+        }));
 
         res.status(200).json({
             message: 'Report files uploaded successfully',
-            files: uploadResults
+            files: uploadedFiles
         });
     } catch (error) {
-        console.error('Upload error:', error);
-        res.status(500).json({ message: 'Error uploading report files' });
+        console.error('Error handling report upload:', error);
+        res.status(500).json({ message: 'Error processing report upload' });
     }
 };
 
 // Delete file from S3
 const deleteFile = async (req, res) => {
     try {
-        const { bucket, key } = req.body;
-        
-        if (!bucket || !key) {
-            return res.status(400).json({ message: 'Bucket and key are required' });
+        const { filename } = req.body;
+        if (!filename) {
+            return res.status(400).json({ message: 'Filename is required' });
         }
 
-        await deleteFromS3(bucket, key);
+        const filePath = path.join('uploads', filename);
+        await fs.unlink(filePath);
+
         res.status(200).json({ message: 'File deleted successfully' });
     } catch (error) {
-        console.error('Delete error:', error);
+        console.error('Error deleting file:', error);
+        if (error.code === 'ENOENT') {
+            return res.status(404).json({ message: 'File not found' });
+        }
         res.status(500).json({ message: 'Error deleting file' });
     }
 };

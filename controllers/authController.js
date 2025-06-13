@@ -1,5 +1,7 @@
-const bcrypt = require('bcryptjs');
+const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const mysql = require('mysql2/promise');
+const { dbConfig } = require('../config/database');
 const api_model = require('../model');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
@@ -17,98 +19,124 @@ const transporter = nodemailer.createTransport({
 const generateToken = () => crypto.randomBytes(32).toString('hex');
 
 const register = async (req, res) => {
+    let connection;
     try {
         const { username, email, password, role = 'user' } = req.body;
 
-        // Validate role
-        const validRoles = ['master_admin', 'admin', 'faculty', 'user'];
-        if (!validRoles.includes(role)) {
-            return res.status(400).json({ message: 'Invalid role specified' });
+        // Validate input
+        if (!username || !email || !password) {
+            return res.status(400).json({ message: 'All fields are required' });
         }
 
+        // Email format validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({ message: 'Invalid email format' });
+        }
+
+        // Password strength validation
+        if (password.length < 8) {
+            return res.status(400).json({ message: 'Password must be at least 8 characters long' });
+        }
+
+        connection = await mysql.createConnection(dbConfig);
+
         // Check if user already exists
-        const existingUser = await api_model.getUserByEmail(email);
-        if (existingUser.length > 0) {
-            return res.status(400).json({ message: 'User already exists' });
+        const [existingUsers] = await connection.execute(
+            'SELECT * FROM users WHERE email = ?',
+            [email]
+        );
+
+        if (existingUsers.length > 0) {
+            return res.status(409).json({ message: 'User already exists' });
         }
 
         // Hash password
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        // Create user
-        const userData = {
-            username,
-            email,
-            password: hashedPassword,
-            role
-        };
+        // Insert new user
+        const [result] = await connection.execute(
+            'INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)',
+            [username, email, hashedPassword, role]
+        );
 
-        const fields = Object.entries(userData).map(([key, value]) => ({ key, value }));
-        const values = fields.map(field => field.value);
+        const token = jwt.sign(
+            { id: result.insertId, username, email, role },
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
 
-        const result = await api_model.postUser(fields, values);
-        
         res.status(201).json({
             message: 'User registered successfully',
-            userId: result.insertId
+            token,
+            user: {
+                id: result.insertId,
+                username,
+                email,
+                role
+            }
         });
     } catch (error) {
         console.error('Registration error:', error);
         res.status(500).json({ message: 'Error registering user' });
+    } finally {
+        if (connection) {
+            await connection.end();
+        }
     }
 };
 
 const login = async (req, res) => {
+    let connection;
     try {
         const { email, password } = req.body;
 
-        // Check if user exists
-        const users = await api_model.getUserByEmail(email);
+        if (!email || !password) {
+            return res.status(400).json({ message: 'Email and password are required' });
+        }
+
+        connection = await mysql.createConnection(dbConfig);
+
+        const [users] = await connection.execute(
+            'SELECT * FROM users WHERE email = ?',
+            [email]
+        );
+
         if (users.length === 0) {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
         const user = users[0];
+        const validPassword = await bcrypt.compare(password, user.password);
 
-        // Verify password
-        const isValidPassword = await bcrypt.compare(password, user.password);
-        if (!isValidPassword) {
+        if (!validPassword) {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
-        // Generate JWT token with configurable expiration
         const token = jwt.sign(
-            { 
-                userId: user.userId, 
-                role: user.role,
-                email: user.email
-            },
+            { id: user.id, username: user.username, email: user.email, role: user.role },
             process.env.JWT_SECRET,
-            { expiresIn: process.env.JWT_EXPIRE || '24h' }
+            { expiresIn: '24h' }
         );
 
-        // Get token expiration time
-        const decoded = jwt.decode(token);
-        const expiresAt = new Date(decoded.exp * 1000).toISOString();
-
         res.json({
-            status: 'success',
             message: 'Login successful',
-            data: {
-                token,
-                expiresAt,
-                user: {
-                    userId: user.userId,
-                    username: user.username,
-                    email: user.email,
-                    role: user.role
-                }
+            token,
+            user: {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                role: user.role
             }
         });
     } catch (error) {
         console.error('Login error:', error);
-        res.status(500).json({ message: 'Error logging in' });
+        res.status(500).json({ message: 'Error during login' });
+    } finally {
+        if (connection) {
+            await connection.end();
+        }
     }
 };
 

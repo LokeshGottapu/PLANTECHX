@@ -1,4 +1,6 @@
 const { query } = require('../model');
+const { Exam, Question, UserResult, sequelize } = require('./index');
+const { Op } = require('sequelize');
 
 // Initialize OpenAI client if API key is available
 let openai = null;
@@ -74,38 +76,138 @@ module.exports = {
 
     // Analytics
     // Student Performance Analytics
-    getUserPerformance: async (userId, filters = {}) => {
+    getUserPerformance: async (userId, filters) => {
         try {
-            let sql = `
-                SELECT 
-                    e.exam_name,
-                    e.exam_type,
-                    ur.score,
-                    ur.completion_time,
-                    ur.completed_at
-                FROM user_results ur
-                JOIN exams e ON ur.exam_id = e.exam_id
-                WHERE ur.user_id = ?
-            `;
-            const values = [userId];
+            const whereClause = {
+                user_id: userId
+            };
 
             if (filters.examType) {
-                sql += ' AND e.exam_type = ?';
-                values.push(filters.examType);
+                whereClause['$exam.exam_type$'] = filters.examType;
+            }
+            if (filters.startDate) {
+                whereClause.completed_at = {
+                    [Op.gte]: filters.startDate
+                };
+            }
+            if (filters.endDate) {
+                whereClause.completed_at = {
+                    ...whereClause.completed_at,
+                    [Op.lte]: filters.endDate
+                };
             }
 
-            if (filters.startDate && filters.endDate) {
-                sql += ' AND ur.completed_at BETWEEN ? AND ?';
-                values.push(filters.startDate, filters.endDate);
-            }
+            const results = await UserResult.findAll({
+                include: [{
+                    model: Exam,
+                    attributes: ['exam_name', 'exam_type'],
+                    include: [{
+                        model: Question,
+                        attributes: ['topic', 'difficulty_level']
+                    }]
+                }],
+                where: whereClause,
+                order: [['completed_at', 'DESC']]
+            });
 
-            sql += ' ORDER BY ur.completed_at DESC';
+            // Process results
+            const processedResults = results.map(result => {
+                const examData = result.Exam;
+                const questions = examData.Questions;
+                
+                // Calculate question analysis
+                const analysis = {
+                    correctCount: 0,
+                    incorrectCount: 0,
+                    totalQuestions: questions.length,
+                    topicWise: {},
+                    difficultyWise: {}
+                };
 
-            const result = await query(sql, values);
-            return result;
-        } catch (err) {
-            console.error('Database error:', err);
+                const answers = JSON.parse(result.answers);
+                questions.forEach(question => {
+                    // Initialize counters
+                    if (!analysis.topicWise[question.topic]) {
+                        analysis.topicWise[question.topic] = { correct: 0, incorrect: 0 };
+                    }
+                    if (!analysis.difficultyWise[question.difficulty_level]) {
+                        analysis.difficultyWise[question.difficulty_level] = { correct: 0, incorrect: 0 };
+                    }
+
+                    const isCorrect = answers[question.id] === true;
+                    if (isCorrect) {
+                        analysis.correctCount++;
+                        analysis.topicWise[question.topic].correct++;
+                        analysis.difficultyWise[question.difficulty_level].correct++;
+                    } else {
+                        analysis.incorrectCount++;
+                        analysis.topicWise[question.topic].incorrect++;
+                        analysis.difficultyWise[question.difficulty_level].incorrect++;
+                    }
+                });
+
+                return {
+                    exam_id: examData.id,
+                    exam_name: examData.exam_name,
+                    exam_type: examData.exam_type,
+                    score: result.score,
+                    completion_time: result.completion_time,
+                    completed_at: result.completed_at,
+                    questionAnalysis: analysis,
+                    performanceMetrics: {
+                        accuracy: (analysis.correctCount / analysis.totalQuestions) * 100,
+                        timePerQuestion: result.completion_time / analysis.totalQuestions
+                    }
+                };
+            });
+
+            return processedResults;
+        } catch (error) {
+            console.error('Database error in getUserPerformance:', error);
             throw new Error('Failed to fetch user performance');
+        }
+    },
+
+    getQuestionAnalysis: async (examId, userAnswers) => {
+        try {
+            const questions = await query(
+                'SELECT question_id, topic, difficulty_level FROM questions WHERE exam_id = ?',
+                [examId]
+            );
+
+            let analysis = {
+                correctCount: 0,
+                incorrectCount: 0,
+                totalQuestions: questions.length,
+                topicWise: {},
+                difficultyWise: {}
+            };
+
+            questions.forEach(question => {
+                // Initialize topic and difficulty counters if not exists
+                if (!analysis.topicWise[question.topic]) {
+                    analysis.topicWise[question.topic] = { correct: 0, incorrect: 0 };
+                }
+                if (!analysis.difficultyWise[question.difficulty_level]) {
+                    analysis.difficultyWise[question.difficulty_level] = { correct: 0, incorrect: 0 };
+                }
+
+                const isCorrect = userAnswers[question.question_id] === true;
+                if (isCorrect) {
+                    analysis.correctCount++;
+                    analysis.topicWise[question.topic].correct++;
+                    analysis.difficultyWise[question.difficulty_level].correct++;
+                } else {
+                    analysis.incorrectCount++;
+                    analysis.topicWise[question.topic].incorrect++;
+                    analysis.difficultyWise[question.difficulty_level].incorrect++;
+                }
+            });
+
+            return analysis;
+        } catch (error) {
+            console.error('Database error in getQuestionAnalysis:', error);
+            throw new Error('Failed to analyze questions');
         }
     },
 

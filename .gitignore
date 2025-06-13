@@ -9,8 +9,7 @@
 # testing
 /coverage
 
-#env files
-.env
+
 
 # production
 /build
