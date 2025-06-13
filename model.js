@@ -1,6 +1,7 @@
 require("dotenv").config();
 const mysql = require("mysql2");
 const util = require("util");
+const { toLower, lowerFirst, isEmpty, last } = require("lodash");
 
 const pool = mysql.createPool({
     host: process.env.MYSQL_HOST,
@@ -113,6 +114,89 @@ module.exports = {
         }
 
     },
+
+    getExamName: async (examName, userId) => {
+
+        try {
+
+            var sql = ` SELECT * 
+                        FROM exams 
+                        WHERE LOWER(examName) LIKE "${'%' + toLower(examName) + '%'}" 
+                        AND examId NOT IN 
+                        ( SELECT examId FROM exams_to_user WHERE userID = ? ) `;
+
+            const result = await query(sql, userId);
+            console.log(result);
+            return result;
+
+        } catch (err) {
+            console.log(`Database error:`, err);
+            throw new Error(`Internal server error`);
+        }
+
+    },
+
+    postExamToUser: async (fields, values) => {
+
+        try {
+
+            var sql = `INSERT INTO exams_to_user (${fields.map(field => field.key).join(", ")}) 
+                        VALUES (${values.map(() => '?').join(", ")})`;
+
+            const result = await query(sql, values);
+            return result;
+
+        } catch (err) {
+            console.log(`Database error:`, err);
+            throw new Error(`Internal server error`);
+        }
+
+    },
+
+    getUserDetails: async (userId) => {
+
+        try {
+
+            var sql = ` SELECT firstName, lastName, department, year, semester, section 
+                        FROM users 
+                        WHERE userId = ? `;
+
+            const result = await query(sql, userId);
+            return result;
+
+        } catch (err) {
+            console.log(`Database error:`, err);
+            throw new Error(`Internal server error`);
+        }
+
+    },
+
+    getExamsToUser: async (userId) => {
+
+        try {
+
+            var sql = ` SELECT exams.examId, exams.examName 
+                        FROM exams_to_user 
+                        INNER JOIN users 
+                        ON users.userID = exams_to_user.userID 
+                        INNER JOIN exams 
+                        ON exams.examId = exams_to_user.examId 
+                        WHERE users.userId = ? `;
+
+            const result = await query(sql, userId);
+            return result;
+
+        } catch (err) {
+            console.log(`Database error:`, err);
+            throw new Error(`Internal server error`);
+        }
+
+    },
+
+
+
+
+
 
     // Faculty Analytics Functions
     getFacultyContributions: async (facultyId) => {
