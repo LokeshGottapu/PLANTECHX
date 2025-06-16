@@ -3,8 +3,6 @@ const pos = require('pos');
 const compromise = require('compromise');
 const winkNLP = require('wink-nlp');
 const model = require('wink-eng-lite-web-model');
-const spacy = require('spacy');
-
 class AdvancedNLP {
     constructor() {
         try {
@@ -15,7 +13,6 @@ class AdvancedNLP {
             this.tokenizer = new natural.WordTokenizer();
             this.tfidf = new natural.TfIdf();
             this.wordnet = new natural.WordNet();
-            this.spacyNLP = spacy.load('en_core_web_sm');
         } catch (error) {
             console.error('Failed to initialize NLP components:', error);
             throw new Error('NLP initialization failed: ' + error.message);
@@ -30,22 +27,18 @@ class AdvancedNLP {
         }
 
         try {
-            const doc = await this.spacyNLP(text);
+            const doc = this.nlpInstance.readDoc(text);
             const relations = [];
 
-        for (const token of doc) {
-            if (token.dep_ !== 'punct') {
-                relations.push({
-                    token: token.text,
-                    dependency: token.dep_,
-                    head: token.head.text,
-                    children: Array.from(token.children).map(c => ({
-                        text: c.text,
-                        dependency: c.dep_
-                    }))
-                });
-            }
-        }
+            doc.tokens().each((token) => {
+                if (token.out(this.its.type) !== 'punctuation') {
+                    relations.push({
+                        token: token.out(this.its.value),
+                        type: token.out(this.its.type),
+                        pos: token.out(this.its.pos)
+                    });
+                }
+            });
 
             return relations;
         } catch (error) {
@@ -104,16 +97,16 @@ class AdvancedNLP {
         }
 
         try {
-            const doc = await this.spacyNLP(text);
+            const doc = this.nlpInstance.readDoc(text);
             const patterns = {
-            temporal: [],
-            causal: [],
-            comparative: [],
-            conditional: []
-        };
+                temporal: [],
+                causal: [],
+                comparative: [],
+                conditional: []
+            };
 
-        for (const sent of doc.sents) {
-            const sentText = sent.text;
+            doc.sentences().each((sent) => {
+                const sentText = sent.out();
 
             // Temporal patterns
             if (/\b(before|after|during|while|when)\b/i.test(sentText)) {
@@ -165,21 +158,22 @@ class AdvancedNLP {
 
         try {
             return Promise.all(terms.map(async term => {
-            const synsets = await new Promise(resolve => {
-                this.wordnet.lookup(term.text || term.term, results => resolve(results));
-            });
+                const synsets = await new Promise(resolve => {
+                    this.wordnet.lookup(term.text || term.term, results => resolve(results));
+                });
 
-            const doc = await this.spacyNLP(term.text || term.term);
-            const token = doc[0];
+                const doc = this.nlpInstance.readDoc(term.text || term.term);
+                const token = doc.tokens().out(0);
+                const tags = this.tagger.tag([token]);
 
-            return {
-                ...term,
-                synonyms: synsets.map(synset => synset.synonyms).flat(),
-                definition: synsets[0]?.definition || '',
-                pos: token.pos_,
-                lemma: token.lemma_,
-                vector: Array.from(token.vector)
-            };
+                return {
+                    ...term,
+                    synonyms: synsets.map(synset => synset.synonyms).flat(),
+                    definition: synsets[0]?.definition || '',
+                    pos: tags[0]?.[1] || '',
+                    lemma: natural.PorterStemmer.stem(token),
+                    features: doc.tokens().out(this.its.features)[0] || {}
+                };
             }));
         } catch (error) {
             const enhancedError = new Error(`Failed to enrich terms with context: ${error.message}. Please ensure WordNet database is accessible and terms are properly formatted.`);

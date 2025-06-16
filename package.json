@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.828.0",
     "aws-sdk": "^2.1692.0",
     "axios": "^1.8.4",
     "bcrypt": "^6.0.0",
@@ -29,25 +30,23 @@
     "wink-nlp": "^2.3.2",
     "wordnet-db": "^3.1.14"
   },
-  "name": "plantech",
+  "name": "plantechx",
   "version": "1.0.0",
   "main": "app_server.js",
   "scripts": {
     "start": "node app_server.js",
     "dev": "nodemon app_server.js",
-    "test": "node tests/test-env.js && mocha tests/integration/*.test.js --timeout 30000 --exit",
-    "test:auth": "node tests/test-env.js && mocha tests/integration/auth.test.js --timeout 30000 --exit",
-    "test:college": "node tests/test-env.js && mocha tests/integration/college.test.js --timeout 30000 --exit",
-    "test:exam": "node tests/test-env.js && mocha tests/integration/exam.test.js --timeout 30000 --exit",
-    "test:file": "node tests/test-env.js && mocha tests/integration/fileUpload.test.js --timeout 30000 --exit"
+    "test": "mocha tests/**/*.test.js --timeout 10000",
+    "test:watch": "mocha tests/**/*.test.js --watch --timeout 10000"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "PLANTECHX Backend",
   "devDependencies": {
     "@types/jest": "^29.5.14",
     "chai": "^5.2.0",
+    "form-data": "^4.0.3",
     "jest": "^29.7.0",
     "mocha": "^11.5.0",
     "mock-require": "^3.0.3",

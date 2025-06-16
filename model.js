@@ -46,11 +46,24 @@ module.exports = {
     postUser: async (fields, values) => {
 
         try {
-
-            var sql = `INSERT INTO users (${fields.map(field => field.key).join(", ")}) 
-                        VALUES (${values.map(() => '?').join(", ")})`;
-
-            const result = await query(sql, values);
+            // Ensure createdAt and updatedAt are present
+            const fieldNames = fields.map(field => field.key);
+            let sqlFields = [...fields];
+            let sqlValues = [...values];
+            let nowFields = [];
+            if (!fieldNames.includes('createdAt')) {
+                nowFields.push('createdAt');
+            }
+            if (!fieldNames.includes('updatedAt')) {
+                nowFields.push('updatedAt');
+            }
+            let sql;
+            if (nowFields.length > 0) {
+                sql = `INSERT INTO users (${[...fieldNames, ...nowFields].join(", ")}) VALUES (${[...values.map(() => '?'), ...nowFields.map(() => 'NOW()')].join(", ")})`;
+            } else {
+                sql = `INSERT INTO users (${fieldNames.join(", ")}) VALUES (${values.map(() => '?').join(", ")})`;
+            }
+            const result = await query(sql, sqlValues);
             return result;
 
         } catch (err) {

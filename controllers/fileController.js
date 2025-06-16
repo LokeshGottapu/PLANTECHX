@@ -1,6 +1,6 @@
 const { uploadToS3, deleteFromS3, bucketConfig } = require('../config/s3Config');
 const path = require('path');
-const fs = require('fs').promises;
+const crypto = require('crypto');
 
 // Helper function to generate unique file key
 const generateFileKey = (file, uploadType) => {
@@ -13,23 +13,36 @@ const generateFileKey = (file, uploadType) => {
 const handleUserUpload = async (req, res) => {
     try {
         if (!req.files || req.files.length === 0) {
-            return res.status(400).json({ message: 'No files uploaded' });
+            return res.status(400).json({ 
+                message: 'No files uploaded',
+                requestId: crypto.randomUUID()
+            });
         }
 
-        const uploadedFiles = req.files.map(file => ({
-            filename: file.filename,
-            originalName: file.originalname,
-            size: file.size,
-            path: file.path
+        const uploadedFiles = await Promise.all(req.files.map(async (file) => {
+            const key = generateFileKey(file, 'user-uploads');
+            const url = await uploadToS3(file, bucketConfig.userUploads, key);
+            
+            return {
+                filename: file.originalname,
+                key: key,
+                size: file.size,
+                url: url
+            };
         }));
 
         res.status(200).json({
             message: 'Files uploaded successfully',
-            files: uploadedFiles
+            files: uploadedFiles,
+            requestId: crypto.randomUUID()
         });
     } catch (error) {
         console.error('Error handling user upload:', error);
-        res.status(500).json({ message: 'Error processing file upload' });
+        res.status(500).json({ 
+            message: 'Error processing file upload',
+            error: error.message,
+            requestId: crypto.randomUUID()
+        });
     }
 };
 
@@ -37,25 +50,36 @@ const handleUserUpload = async (req, res) => {
 const handleQuestionBankUpload = async (req, res) => {
     try {
         if (!req.files || req.files.length === 0) {
-            return res.status(400).json({ message: 'No files uploaded' });
+            return res.status(400).json({ 
+                message: 'No files uploaded',
+                requestId: crypto.randomUUID()
+            });
         }
 
-        const uploadedFiles = req.files.map(file => ({
-            filename: file.filename,
-            originalName: file.originalname,
-            size: file.size,
-            path: file.path
+        const uploadedFiles = await Promise.all(req.files.map(async (file) => {
+            const key = generateFileKey(file, 'question-bank');
+            const url = await uploadToS3(file, bucketConfig.questionBank, key);
+            
+            return {
+                filename: file.originalname,
+                key: key,
+                size: file.size,
+                url: url
+            };
         }));
-
-        // TODO: Process question bank files and extract questions
 
         res.status(200).json({
             message: 'Question bank files uploaded successfully',
-            files: uploadedFiles
+            files: uploadedFiles,
+            requestId: crypto.randomUUID()
         });
     } catch (error) {
         console.error('Error handling question bank upload:', error);
-        res.status(500).json({ message: 'Error processing question bank upload' });
+        res.status(500).json({ 
+            message: 'Error processing question bank upload',
+            error: error.message,
+            requestId: crypto.randomUUID()
+        });
     }
 };
 
@@ -63,44 +87,62 @@ const handleQuestionBankUpload = async (req, res) => {
 const handleReportUpload = async (req, res) => {
     try {
         if (!req.files || req.files.length === 0) {
-            return res.status(400).json({ message: 'No files uploaded' });
+            return res.status(400).json({ 
+                message: 'No files uploaded',
+                requestId: crypto.randomUUID()
+            });
         }
 
-        const uploadedFiles = req.files.map(file => ({
-            filename: file.filename,
-            originalName: file.originalname,
-            size: file.size,
-            path: file.path
+        const uploadedFiles = await Promise.all(req.files.map(async (file) => {
+            const key = generateFileKey(file, 'reports');
+            const url = await uploadToS3(file, bucketConfig.reports, key);
+            
+            return {
+                filename: file.originalname,
+                key: key,
+                size: file.size,
+                url: url
+            };
         }));
 
         res.status(200).json({
             message: 'Report files uploaded successfully',
-            files: uploadedFiles
+            files: uploadedFiles,
+            requestId: crypto.randomUUID()
         });
     } catch (error) {
         console.error('Error handling report upload:', error);
-        res.status(500).json({ message: 'Error processing report upload' });
+        res.status(500).json({ 
+            message: 'Error processing report upload',
+            error: error.message,
+            requestId: crypto.randomUUID()
+        });
     }
 };
 
 // Delete file from S3
 const deleteFile = async (req, res) => {
     try {
-        const { filename } = req.body;
-        if (!filename) {
-            return res.status(400).json({ message: 'Filename is required' });
+        const { key, bucket } = req.body;
+        if (!key || !bucket) {
+            return res.status(400).json({ 
+                message: 'File key and bucket are required',
+                requestId: crypto.randomUUID()
+            });
         }
 
-        const filePath = path.join('uploads', filename);
-        await fs.unlink(filePath);
-
-        res.status(200).json({ message: 'File deleted successfully' });
+        await deleteFromS3(bucket, key);
+        res.status(200).json({ 
+            message: 'File deleted successfully',
+            requestId: crypto.randomUUID()
+        });
     } catch (error) {
         console.error('Error deleting file:', error);
-        if (error.code === 'ENOENT') {
-            return res.status(404).json({ message: 'File not found' });
-        }
-        res.status(500).json({ message: 'Error deleting file' });
+        res.status(500).json({ 
+            message: 'Error deleting file',
+            error: error.message,
+            requestId: crypto.randomUUID()
+        });
     }
 };
 

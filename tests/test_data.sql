@@ -48,3 +48,19 @@ INSERT INTO faculty (user_id, college_id, department, specialization, teaching_e
 INSERT INTO faculty_departments (faculty_id, department_name, joining_date, createdAt, updatedAt) VALUES
 (1, 'English Department', '2023-01-15', NOW(), NOW()),
 (2, 'Computer Science', '2023-02-01', NOW(), NOW());
+
+-- Insert test user
+INSERT INTO users (username, email, password, role) VALUES
+('testuser', 'test@example.com', '$2a$10$X7UrH5QxX5QxX5QxX5QxX.5QxX5QxX5QxX5QxX5QxX5QxX5QxX5Q', 'user');
+
+-- Insert test college
+INSERT INTO colleges (name, email, address, status) VALUES
+('Test College', 'college@test.com', '123 Test St', 'approved');
+
+-- Insert test exam
+INSERT INTO exams (exam_name, exam_type, total_questions, duration, created_by) VALUES
+('Test Exam', 'standard', 10, 60, 1);
+
+-- Insert test question
+INSERT INTO questions (exam_id, question_text, question_type, options, correct_answer, marks) VALUES
+(1, 'What is 2+2?', 'multiple_choice', '["3", "4", "5", "6"]', '4', 5);

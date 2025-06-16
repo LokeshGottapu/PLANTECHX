@@ -1,17 +1,22 @@
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const mysql = require('mysql2/promise');
 const { dbConfig } = require('../config/database');
-const api_model = require('../model');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 
 // Email configuration
 const transporter = nodemailer.createTransport({
-    service: process.env.EMAIL_SERVICE,
+    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASSWORD
+    },
+    tls: {
+        rejectUnauthorized: false
     }
 });
 
@@ -57,7 +62,7 @@ const register = async (req, res) => {
 
         // Insert new user
         const [result] = await connection.execute(
-            'INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)',
+            'INSERT INTO users (username, email, password, role, createdAt) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)',
             [username, email, hashedPassword, role]
         );
 
@@ -115,7 +120,7 @@ const login = async (req, res) => {
         }
 
         const token = jwt.sign(
-            { id: user.id, username: user.username, email: user.email, role: user.role },
+            { id: user.userId, username: user.username, email: user.email, role: user.role },
             process.env.JWT_SECRET,
             { expiresIn: '24h' }
         );
@@ -124,7 +129,7 @@ const login = async (req, res) => {
             message: 'Login successful',
             token,
             user: {
-                id: user.id,
+                id: user.userId,
                 username: user.username,
                 email: user.email,
                 role: user.role
@@ -141,22 +146,39 @@ const login = async (req, res) => {
 };
 
 const forgotPassword = async (req, res) => {
+    let connection;
     try {
         const { email } = req.body;
-        const users = await api_model.getUserByEmail(email);
+        
+        if (!email) {
+            return res.status(400).json({ 
+                error: 'Validation Error',
+                message: 'Email is required' 
+            });
+        }
+
+        connection = await mysql.createConnection(dbConfig);
+        
+        const [users] = await connection.execute(
+            'SELECT * FROM users WHERE email = ?',
+            [email]
+        );
 
         if (users.length === 0) {
-            return res.status(404).json({ message: 'User not found' });
+            return res.status(404).json({ 
+                error: 'Not Found',
+                message: 'User not found' 
+            });
         }
 
         const user = users[0];
         const resetToken = generateToken();
         const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour
 
-        await api_model.updateUser(user.userId, [
-            { key: 'reset_token', value: resetToken },
-            { key: 'reset_token_expiry', value: resetTokenExpiry }
-        ]);
+        await connection.execute(
+            'UPDATE users SET reset_token = ?, reset_token_expiry = ? WHERE userId = ?',
+            [resetToken, resetTokenExpiry, user.userId]
+        );
 
         const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
 
@@ -166,37 +188,82 @@ const forgotPassword = async (req, res) => {
             html: `Please click this link to reset your password: <a href="${resetUrl}">Reset Password</a>`
         });
 
-        res.json({ message: 'Password reset link sent to email' });
+        res.json({ 
+            message: 'Password reset link sent to email',
+            requestId: crypto.randomBytes(16).toString('hex')
+        });
     } catch (error) {
         console.error('Forgot password error:', error);
-        res.status(500).json({ message: 'Error processing password reset request' });
+        res.status(500).json({ 
+            error: 'Internal Server Error',
+            message: 'An unexpected error occurred',
+            requestId: crypto.randomBytes(16).toString('hex')
+        });
+    } finally {
+        if (connection) {
+            await connection.end();
+        }
     }
 };
 
 const resetPassword = async (req, res) => {
+    let connection;
     try {
         const { token, newPassword } = req.body;
-        const sql = 'SELECT * FROM users WHERE reset_token = ? AND reset_token_expiry > NOW()';
-        const users = await api_model.query(sql, [token]);
+        
+        if (!token || !newPassword) {
+            return res.status(400).json({ 
+                error: 'Validation Error',
+                message: 'Token and new password are required' 
+            });
+        }
+
+        // Password strength validation
+        if (newPassword.length < 8) {
+            return res.status(400).json({ 
+                error: 'Validation Error',
+                message: 'Password must be at least 8 characters long' 
+            });
+        }
+        
+        connection = await mysql.createConnection(dbConfig);
+        
+        const [users] = await connection.execute(
+            'SELECT * FROM users WHERE reset_token = ? AND reset_token_expiry > NOW()',
+            [token]
+        );
 
         if (users.length === 0) {
-            return res.status(400).json({ message: 'Invalid or expired reset token' });
+            return res.status(400).json({ 
+                error: 'Validation Error',
+                message: 'Invalid or expired reset token' 
+            });
         }
 
         const user = users[0];
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-        await api_model.updateUser(user.userId, [
-            { key: 'password', value: hashedPassword },
-            { key: 'reset_token', value: null },
-            { key: 'reset_token_expiry', value: null }
-        ]);
+        await connection.execute(
+            'UPDATE users SET password = ?, reset_token = NULL, reset_token_expiry = NULL WHERE userId = ?',
+            [hashedPassword, user.userId]
+        );
 
-        res.json({ message: 'Password reset successful' });
+        res.json({ 
+            message: 'Password reset successful',
+            requestId: crypto.randomBytes(16).toString('hex')
+        });
     } catch (error) {
         console.error('Reset password error:', error);
-        res.status(500).json({ message: 'Error resetting password' });
+        res.status(500).json({ 
+            error: 'Internal Server Error',
+            message: 'An unexpected error occurred',
+            requestId: crypto.randomBytes(16).toString('hex')
+        });
+    } finally {
+        if (connection) {
+            await connection.end();
+        }
     }
 };
 

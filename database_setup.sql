@@ -13,14 +13,15 @@ CREATE TABLE IF NOT EXISTS users (
     reset_token_expiry DATETIME,
     email_verified BOOLEAN DEFAULT FALSE,
     verification_token VARCHAR(255),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 -- Create colleges table
 CREATE TABLE IF NOT EXISTS colleges (
     college_id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
     address TEXT,
     status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -71,6 +72,13 @@ CREATE TABLE IF NOT EXISTS user_results (
     FOREIGN KEY (exam_id) REFERENCES exams(exam_id)
 );
 
+-- Create faculty_departments table
+CREATE TABLE IF NOT EXISTS faculty_departments (
+    department_id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create faculty table
 CREATE TABLE IF NOT EXISTS faculty (
     faculty_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -79,16 +87,6 @@ CREATE TABLE IF NOT EXISTS faculty (
     department_id INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(userId),
-    FOREIGN KEY (college_id) REFERENCES colleges(college_id)
-);
-
--- Create faculty_departments table
-CREATE TABLE IF NOT EXISTS faculty_departments (
-    department_id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Add foreign key for department_id in faculty table
-ALTER TABLE faculty
-ADD FOREIGN KEY (department_id) REFERENCES faculty_departments(department_id); 
+    FOREIGN KEY (college_id) REFERENCES colleges(college_id),
+    FOREIGN KEY (department_id) REFERENCES faculty_departments(department_id)
+); 

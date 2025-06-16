@@ -1,27 +1,25 @@
-const examModel = require('../models/examModel');
 const { validationResult } = require('express-validator');
-const QuestionGenerator = require('../services/QuestionGenerator');
-const Question = require('../models/Question');
 const mysql = require('mysql2/promise');
 const { dbConfig } = require('../config/database');
+const crypto = require('crypto');
 
 module.exports = {
     // Exam Management
     createExam: async (req, res) => {
         let connection;
         try {
-            const { title, description, duration, totalMarks, passingMarks } = req.body;
-            const facultyId = req.user.id;
+            const { title, description, duration, totalMarks } = req.body;
+            const userId = req.user.id;
 
-            if (!title || !duration || !totalMarks || !passingMarks) {
-                return res.status(400).json({ message: 'Missing required fields' });
+            if (!title || !duration || !totalMarks) {
+                return res.status(400).json({ message: 'Title, duration, and total marks are required' });
             }
 
             connection = await mysql.createConnection(dbConfig);
 
             const [result] = await connection.execute(
-                'INSERT INTO exams (title, description, duration, total_marks, passing_marks, faculty_id) VALUES (?, ?, ?, ?, ?, ?)',
-                [title, description, duration, totalMarks, passingMarks, facultyId]
+                'INSERT INTO exams (exam_name, exam_type, total_questions, duration, created_by) VALUES (?, ?, ?, ?, ?)',
+                [title, 'standard', totalMarks, duration, userId]
             );
 
             res.status(201).json({
@@ -29,7 +27,7 @@ module.exports = {
                 examId: result.insertId
             });
         } catch (error) {
-            console.error('Error creating exam:', error);
+            console.error('Create exam error:', error);
             res.status(500).json({ message: 'Error creating exam' });
         } finally {
             if (connection) {
@@ -42,41 +40,34 @@ module.exports = {
     addQuestion: async (req, res) => {
         let connection;
         try {
-            const { examId } = req.params;
-            const { question, options, correctAnswer, marks } = req.body;
-
-            if (!question || !options || !correctAnswer || !marks) {
-                return res.status(400).json({ message: 'Missing required fields' });
-            }
-
-            if (!Array.isArray(options) || options.length < 2) {
-                return res.status(400).json({ message: 'At least 2 options are required' });
+            const { examId, questionText, questionType, options, correctAnswer, difficultyLevel, topic } = req.body;
+            
+            if (!examId || !questionText || !questionType || !options || !correctAnswer || !difficultyLevel || !topic) {
+                return res.status(400).json({
+                    error: 'Validation Error',
+                    message: 'All fields are required'
+                });
             }
 
             connection = await mysql.createConnection(dbConfig);
-
-            // Check if exam exists and belongs to the faculty
-            const [exams] = await connection.execute(
-                'SELECT * FROM exams WHERE id = ? AND faculty_id = ?',
-                [examId, req.user.id]
-            );
-
-            if (exams.length === 0) {
-                return res.status(404).json({ message: 'Exam not found or unauthorized' });
-            }
-
+            
             const [result] = await connection.execute(
-                'INSERT INTO questions (exam_id, question_text, options, correct_answer, marks) VALUES (?, ?, ?, ?, ?)',
-                [examId, question, JSON.stringify(options), correctAnswer, marks]
+                'INSERT INTO questions (exam_id, question_text, question_type, options, correct_answer, difficulty_level, topic) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [examId, questionText, questionType, JSON.stringify(options), correctAnswer, difficultyLevel, topic]
             );
 
             res.status(201).json({
                 message: 'Question added successfully',
-                questionId: result.insertId
+                questionId: result.insertId,
+                requestId: crypto.randomBytes(16).toString('hex')
             });
         } catch (error) {
-            console.error('Error adding question:', error);
-            res.status(500).json({ message: 'Error adding question' });
+            console.error('Add question error:', error);
+            res.status(500).json({
+                error: 'Internal Server Error',
+                message: 'An unexpected error occurred',
+                requestId: crypto.randomBytes(16).toString('hex')
+            });
         } finally {
             if (connection) {
                 await connection.end();
@@ -85,35 +76,36 @@ module.exports = {
     },
 
     // AI Question Generation
-    generateQuestions: async (req, res) => {
+    generateAIQuestions: async (req, res) => {
+        let connection;
         try {
-            const { examId, content, topic, numberOfQuestions } = req.body;
+            const { examId, count = 5 } = req.body;
 
-            if (!content || !topic || !examId) {
-                return res.status(400).json({
-                    message: 'Content, topic, and examId are required'
-                });
+            if (!examId) {
+                return res.status(400).json({ message: 'Exam ID is required' });
             }
 
-            const generatedQuestions = await QuestionGenerator.generateAndSaveQuestions(
-                content,
-                examId,
-                topic,
-                numberOfQuestions || 5
+            connection = await mysql.createConnection(dbConfig);
+
+            // Check if exam exists and user is authorized
+            const [exams] = await connection.execute(
+                'SELECT * FROM exams WHERE exam_id = ? AND created_by = ?',
+                [examId, req.user.id]
             );
 
-            const savedQuestions = await Question.bulkCreate(generatedQuestions);
+            if (exams.length === 0) {
+                return res.status(404).json({ message: 'Exam not found or unauthorized' });
+            }
 
-            res.status(201).json({
-                message: 'Questions generated and saved successfully',
-                questions: savedQuestions
-            });
+            // TODO: Implement AI question generation
+            res.json({ message: 'AI question generation not implemented yet' });
         } catch (error) {
-            console.error('Question generation error:', error);
-            res.status(500).json({
-                message: 'Error generating questions',
-                error: error.message
-            });
+            console.error('Generate AI questions error:', error);
+            res.status(500).json({ message: 'Error generating AI questions' });
+        } finally {
+            if (connection) {
+                await connection.end();
+            }
         }
     },
 
@@ -126,53 +118,50 @@ module.exports = {
             const userId = req.user.id;
 
             if (!answers || !Array.isArray(answers)) {
-                return res.status(400).json({ message: 'Invalid answers format' });
+                return res.status(400).json({ message: 'Answers are required' });
             }
 
             connection = await mysql.createConnection(dbConfig);
 
-            // Get exam details and questions
-            const [exams] = await connection.execute(
-                'SELECT * FROM exams WHERE id = ?',
-                [examId]
-            );
-
-            if (exams.length === 0) {
-                return res.status(404).json({ message: 'Exam not found' });
-            }
-
-            const exam = exams[0];
-
-            // Get all questions for the exam
+            // Get exam questions
             const [questions] = await connection.execute(
                 'SELECT * FROM questions WHERE exam_id = ?',
                 [examId]
             );
 
+            if (questions.length === 0) {
+                return res.status(404).json({ message: 'Exam not found' });
+            }
+
             // Calculate score
-            let totalScore = 0;
-            answers.forEach(answer => {
-                const question = questions.find(q => q.id === answer.questionId);
-                if (question && question.correct_answer === answer.selectedAnswer) {
-                    totalScore += question.marks;
+            let score = 0;
+            const userAnswers = answers.map(answer => {
+                const question = questions.find(q => q.question_id === answer.questionId);
+                const isCorrect = question && question.correct_answer === answer.answer;
+                if (isCorrect) {
+                    score += question.marks;
                 }
+                return {
+                    questionId: answer.questionId,
+                    answer: answer.answer,
+                    isCorrect
+                };
             });
 
             // Save result
-            const passed = totalScore >= exam.passing_marks;
-            await connection.execute(
-                'INSERT INTO user_results (user_id, exam_id, score, passed) VALUES (?, ?, ?, ?)',
-                [userId, examId, totalScore, passed]
+            const [result] = await connection.execute(
+                'INSERT INTO user_results (user_id, exam_id, score, answers) VALUES (?, ?, ?, ?)',
+                [userId, examId, score, JSON.stringify(userAnswers)]
             );
 
             res.json({
                 message: 'Exam submitted successfully',
-                score: totalScore,
-                totalMarks: exam.total_marks,
-                passed
+                score,
+                totalQuestions: questions.length,
+                correctAnswers: userAnswers.filter(a => a.isCorrect).length
             });
         } catch (error) {
-            console.error('Error submitting exam:', error);
+            console.error('Submit exam error:', error);
             res.status(500).json({ message: 'Error submitting exam' });
         } finally {
             if (connection) {
@@ -182,34 +171,51 @@ module.exports = {
     },
 
     // Performance Analytics
-    // Student Performance Reports
     getUserPerformance: async (req, res) => {
         let connection;
         try {
             const { userId } = req.params;
+            const { examType, startDate, endDate } = req.query;
+            
+            let query = `
+                SELECT e.exam_name, e.exam_type, ur.score, ur.completion_time, ur.completed_at
+                FROM user_results ur
+                JOIN exams e ON ur.exam_id = e.exam_id
+                WHERE ur.user_id = ?
+            `;
+            const params = [userId];
 
-            // Only allow users to view their own performance unless admin
-            if (req.user.role !== 'admin' && req.user.id !== parseInt(userId)) {
-                return res.status(403).json({ message: 'Unauthorized' });
+            if (examType) {
+                query += ' AND e.exam_type = ?';
+                params.push(examType);
             }
 
-            connection = await mysql.createConnection(dbConfig);
+            if (startDate) {
+                query += ' AND ur.completed_at >= ?';
+                params.push(startDate);
+            }
 
-            const [results] = await connection.execute(
-                `SELECT ur.*, e.title, e.total_marks, e.passing_marks 
-                 FROM user_results ur 
-                 JOIN exams e ON ur.exam_id = e.id 
-                 WHERE ur.user_id = ?`,
-                [userId]
-            );
+            if (endDate) {
+                query += ' AND ur.completed_at <= ?';
+                params.push(endDate);
+            }
+
+            query += ' ORDER BY ur.completed_at DESC';
+
+            connection = await mysql.createConnection(dbConfig);
+            const [results] = await connection.execute(query, params);
 
             res.json({
-                message: 'Performance data retrieved successfully',
-                results
+                data: results,
+                requestId: crypto.randomBytes(16).toString('hex')
             });
         } catch (error) {
-            console.error('Error getting user performance:', error);
-            res.status(500).json({ message: 'Error retrieving performance data' });
+            console.error('Get user performance error:', error);
+            res.status(500).json({
+                error: 'Internal Server Error',
+                message: 'An unexpected error occurred',
+                requestId: crypto.randomBytes(16).toString('hex')
+            });
         } finally {
             if (connection) {
                 await connection.end();
@@ -308,24 +314,6 @@ module.exports = {
         } catch (error) {
             console.error('Get exam questions error:', error);
             res.status(500).json({ message: 'Error fetching exam questions' });
-        }
-    },
-
-    // AI Question Generation
-    generateAIQuestions: async (req, res) => {
-        try {
-            const { subject, topic, difficulty, count } = req.body;
-
-            if (!subject || !topic || !difficulty || !count) {
-                return res.status(400).json({ message: 'Missing required fields' });
-            }
-
-            // TODO: Implement AI question generation using OpenAI or similar service
-
-            res.status(501).json({ message: 'AI question generation not implemented yet' });
-        } catch (error) {
-            console.error('Error generating AI questions:', error);
-            res.status(500).json({ message: 'Error generating questions' });
         }
     },
 

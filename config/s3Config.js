@@ -1,15 +1,14 @@
-const AWS = require('aws-sdk');
+const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 require('dotenv').config();
 
-// Configure AWS
-AWS.config.update({
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-    region: process.env.AWS_REGION
+// Configure AWS S3 client
+const s3Client = new S3Client({
+    region: process.env.AWS_REGION,
+    credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+    }
 });
-
-// Create S3 instance
-const s3 = new AWS.S3();
 
 // S3 bucket configurations
 const bucketConfig = {
@@ -21,15 +20,15 @@ const bucketConfig = {
 // Helper function to upload file to S3
 const uploadToS3 = async (file, bucket, key) => {
     try {
-        const params = {
+        const command = new PutObjectCommand({
             Bucket: bucket,
             Key: key,
             Body: file.buffer,
             ContentType: file.mimetype
-        };
+        });
 
-        const result = await s3.upload(params).promise();
-        return result.Location;
+        await s3Client.send(command);
+        return `https://${bucket}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
     } catch (error) {
         console.error('S3 upload error:', error);
         throw new Error('Failed to upload file to S3');
@@ -39,12 +38,12 @@ const uploadToS3 = async (file, bucket, key) => {
 // Helper function to delete file from S3
 const deleteFromS3 = async (bucket, key) => {
     try {
-        const params = {
+        const command = new DeleteObjectCommand({
             Bucket: bucket,
             Key: key
-        };
+        });
 
-        await s3.deleteObject(params).promise();
+        await s3Client.send(command);
         return true;
     } catch (error) {
         console.error('S3 delete error:', error);
@@ -53,7 +52,7 @@ const deleteFromS3 = async (bucket, key) => {
 };
 
 module.exports = {
-    s3,
+    s3Client,
     bucketConfig,
     uploadToS3,
     deleteFromS3
