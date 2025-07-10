@@ -527,11 +527,52 @@ module.exports = {
         }
     },
 
+    // Get exams with filtering
+    getAllExams: async (req, res) => {
+        const { type, category, topic, companyName } = req.query;
+        let query = 'SELECT * FROM exams WHERE 1=1';
+        const params = [];
+        if (type) { query += ' AND type = ?'; params.push(type); }
+        if (category) { query += ' AND category = ?'; params.push(category); }
+        if (topic) { query += ' AND topic = ?'; params.push(topic); }
+        if (companyName) { query += ' AND companyName = ?'; params.push(companyName); }
+
+        let connection = null;
+        try {
+            connection = await mysql.createConnection(dbConfig);
+            if (!connection) {
+                throw new Error('Error connecting to database');
+            }
+            
+            const [exams] = await connection.execute(query, params);
+            if (!exams) {
+                throw new Error('Error fetching exams');
+            }
+
+            res.json({ exams });
+        } catch (error) {
+            console.error('Error fetching exams:', error);
+            res.status(500).json({ message: 'Error fetching exams', error: error.message });
+        } finally {
+            if (connection) {
+                try {
+                    await connection.end();
+                } catch (endError) {
+                    console.error('Error closing connection:', endError);
+                }
+            }
+        }
+    },
+
     // Fetch full details of one exam
     getExamById: async (req, res) => {
         let connection = null;
         try {
             const { examId } = req.params;
+            if (!examId) {
+                return res.status(400).json({ message: 'Exam ID is required' });
+            }
+
             connection = await mysql.createConnection(dbConfig);
             if (!connection) {
                 throw new Error('Error connecting to database');
@@ -546,10 +587,19 @@ module.exports = {
                 throw new Error('Exam not found');
             }
 
-            res.json(exams[0]);
+            const exam = exams[0];
+            if (!exam) {
+                throw new Error('Exam not found');
+            }
+
+            res.json(exam);
         } catch (error) {
-            console.error('Get exam by ID error:', error);
-            res.status(500).json({ message: 'Error fetching exam' });
+            if (error instanceof Error) {
+                console.error('Get exam by ID error:', error.message, error.stack);
+            } else {
+                console.error('Get exam by ID error:', error);
+            }
+            res.status(500).json({ message: 'Error fetching exam', error: error?.message });
         } finally {
             if (connection) {
                 try {
@@ -587,19 +637,32 @@ module.exports = {
 
             values.push(examId);
 
+            if (fields.length === 0) {
+                throw new Error('No fields to update');
+            }
+
             const [result] = await connection.execute(
                 `UPDATE exams SET ${fields.join(', ')} WHERE exam_id = ?`,
                 values
             );
-            await connection.end();
 
             if (result.affectedRows === 0) {
-                return res.status(404).json({ message: 'Exam not found or no changes made' });
+                throw new Error('Exam not found or no changes made');
             }
+
+            await connection.end();
             res.json({ message: 'Exam updated successfully' });
         } catch (error) {
             console.error('Update exam error:', error);
             res.status(500).json({ message: 'Error updating exam', error: error.message });
+        } finally {
+            if (connection) {
+                try {
+                    await connection.end();
+                } catch (endError) {
+                    console.error('Error closing connection:', endError);
+                }
+            }
         }
     },
 
@@ -611,7 +674,7 @@ module.exports = {
             if (!examId) {
                 return res.status(400).json({ message: 'Exam ID is required' });
             }
-            
+
             connection = await mysql.createConnection(dbConfig);
             if (!connection) {
                 throw new Error('Error connecting to database');
@@ -622,14 +685,14 @@ module.exports = {
                 [examId]
             );
 
-            if (result.affectedRows === 0) {
+            if (!result || result.affectedRows === 0) {
                 return res.status(404).json({ message: 'Exam not found' });
             }
 
             res.json({ message: 'Exam deleted successfully' });
         } catch (error) {
             console.error('Delete exam error:', error);
-            res.status(500).json({ message: 'Error deleting exam', error: error.message });
+            res.status(500).json({ message: 'Error deleting exam', error: error?.message });
         } finally {
             if (connection) {
                 try {
@@ -649,6 +712,9 @@ module.exports = {
             if (!examId || !Array.isArray(studentIds) || studentIds.length === 0) {
                 return res.status(400).json({ message: 'Exam ID and student IDs are required' });
             }
+            if (!studentIds.every(id => typeof id === 'number')) {
+                throw new Error('Student IDs must be an array of numbers');
+            }
 
             connection = await mysql.createConnection(dbConfig);
             if (!connection) {
@@ -656,6 +722,9 @@ module.exports = {
             }
 
             for (const userId of studentIds) {
+                if (typeof userId !== 'number') {
+                    throw new Error(`Student ID is not a number: ${userId}`);
+                }
                 await connection.execute(
                     'INSERT IGNORE INTO assigned_exams (user_id, exam_id) VALUES (?, ?)',
                     [userId, examId]
@@ -678,18 +747,37 @@ module.exports = {
     },
     // Bulk upload questions via CSV or form
     uploadQuestions: async (req, res) => {
+        let connection = null;
         try {
             const { examId, questions } = req.body;
             if (!examId || !Array.isArray(questions) || questions.length === 0) {
                 return res.status(400).json({ message: 'Exam ID and questions are required' });
             }
-            const connection = await mysql.createConnection(dbConfig);
+            connection = await mysql.createConnection(dbConfig);
             if (!connection) {
                 throw new Error('Database connection failed');
             }
             for (const q of questions) {
-                if (!q.questionText || !q.questionType || !Array.isArray(q.options) || q.options.length === 0 || !q.correctAnswer || !q.difficultyLevel || !q.topic) {
-                    throw new Error('Invalid question format');
+                if (!q || typeof q !== 'object') {
+                    throw new Error('Invalid question format: question is not an object');
+                }
+                if (!q.questionText || typeof q.questionText !== 'string') {
+                    throw new Error('Invalid question format: questionText is not a string');
+                }
+                if (!q.questionType || typeof q.questionType !== 'string') {
+                    throw new Error('Invalid question format: questionType is not a string');
+                }
+                if (!Array.isArray(q.options) || q.options.length === 0) {
+                    throw new Error('Invalid question format: options is not an array or is empty');
+                }
+                if (!q.correctAnswer || typeof q.correctAnswer !== 'string') {
+                    throw new Error('Invalid question format: correctAnswer is not a string');
+                }
+                if (!q.difficultyLevel || typeof q.difficultyLevel !== 'string') {
+                    throw new Error('Invalid question format: difficultyLevel is not a string');
+                }
+                if (!q.topic || typeof q.topic !== 'string') {
+                    throw new Error('Invalid question format: topic is not a string');
                 }
                 await connection.execute(
                     'INSERT INTO questions (exam_id, question_text, question_type, options, correct_answer, difficulty_level, topic) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -701,6 +789,14 @@ module.exports = {
         } catch (error) {
             console.error('Upload questions error:', error);
             res.status(500).json({ message: 'Error uploading questions', error: error.message });
+        } finally {
+            if (connection) {
+                try {
+                    await connection.end();
+                } catch (endError) {
+                    console.error('Error closing connection:', endError);
+                }
+            }
         }
     },
     // List all questions for an exam
@@ -712,9 +808,6 @@ module.exports = {
                 return res.status(400).json({ message: 'examId is required' });
             }
             connection = await mysql.createConnection(dbConfig);
-            if (!connection) {
-                throw new Error('Database connection failed');
-            }
             const [questions] = await connection.execute(
                 'SELECT * FROM questions WHERE exam_id = ?',
                 [examId]
@@ -722,11 +815,10 @@ module.exports = {
             if (!questions || questions.length === 0) {
                 return res.status(404).json({ message: 'No questions found for this exam' });
             }
-            await connection.end();
             res.json(questions);
         } catch (error) {
             console.error('Get questions by exam ID error:', error);
-            res.status(500).json({ message: 'Error fetching questions by exam ID' });
+            res.status(500).json({ message: 'Error fetching questions by exam ID', error: error.message });
         } finally {
             if (connection) {
                 try {
@@ -773,15 +865,11 @@ module.exports = {
                 `UPDATE questions SET ${fields.join(', ')} WHERE question_id = ?`,
                 values
             );
-            if (!result) {
+            if (!result || result.affectedRows === 0) {
                 throw new Error('Failed to execute update query');
             }
             
-            if (result.affectedRows > 0) {
-                res.json({ message: 'Question updated successfully' });
-            } else {
-                res.status(404).json({ message: 'Question not found' });
-            }
+            res.json({ message: 'Question updated successfully' });
         } catch (error) {
             console.error('Update question error:', error);
             res.status(500).json({ message: 'Error updating question', error: error.message });
@@ -814,16 +902,29 @@ module.exports = {
             if (!result || result.affectedRows === 0) {
                 throw new Error('Question not found');
             }
-            res.json({ message: 'Question deleted successfully' });
+            if (result && result.affectedRows > 0) {
+                res.json({ message: 'Question deleted successfully' });
+            } else {
+                throw new Error('Error deleting question');
+            }
         } catch (error) {
-            console.error('Delete question error:', error);
-            res.status(500).json({ message: 'Error deleting question', error: error.message });
+            if (error instanceof Error) {
+                console.error('Delete question error:', error);
+                res.status(500).json({ message: 'Error deleting question', error: error.message });
+            } else {
+                console.error('Delete question error:', error);
+                res.status(500).json({ message: 'Error deleting question', error: 'Internal Server Error' });
+            }
         } finally {
             if (connection) {
                 try {
                     await connection.end();
                 } catch (endError) {
-                    console.error('Error closing connection:', endError);
+                    if (endError instanceof Error) {
+                        console.error('Error closing connection:', endError);
+                    } else {
+                        console.error('Error closing connection:', 'Internal Server Error');
+                    }
                 }
             }
         }
@@ -849,20 +950,29 @@ module.exports = {
                 WHERE exam_id = ?`,
                 [examId]
             );
-            if (!stats || !stats[0]) {
+            if (!stats || !stats[0] || !stats[0].averageScore || !stats[0].topScore || !stats[0].lowScore) {
                 throw new Error('No stats found');
             }
             await connection.end();
             res.json(stats[0]);
         } catch (error) {
-            console.error('Analyze exam results error:', error);
-            res.status(500).json({ message: 'Error analyzing exam results', error: error.message });
+            if (error instanceof Error) {
+                console.error('Analyze exam results error:', error);
+                res.status(500).json({ message: 'Error analyzing exam results', error: error.message });
+            } else {
+                console.error('Analyze exam results error:', error);
+                res.status(500).json({ message: 'Error analyzing exam results', error: 'Internal Server Error' });
+            }
         } finally {
             if (connection) {
                 try {
                     await connection.end();
                 } catch (endError) {
-                    console.error('Error closing connection:', endError);
+                    if (endError instanceof Error) {
+                        console.error('Error closing connection:', endError);
+                    } else {
+                        console.error('Error closing connection:', 'Internal Server Error');
+                    }
                 }
             }
         }
@@ -874,12 +984,9 @@ module.exports = {
         try {
             const userId = req.user?.id;
             if (!userId) {
-                throw new Error('User ID is required');
+                return res.status(400).json({ message: 'User ID is required' });
             }
             connection = await mysql.createConnection(dbConfig);
-            if (!connection) {
-                throw new Error('Database connection failed');
-            }
             const [exams] = await connection.execute(
                 `SELECT e.exam_id, e.exam_name, e.duration, e.total_questions, e.created_at
                  FROM assigned_exams ae
@@ -888,10 +995,9 @@ module.exports = {
                  ORDER BY e.created_at DESC`,
                 [userId]
             );
-            if (!exams || !exams.length) {
-                throw new Error('No assigned exams found');
+            if (!exams || exams.length === 0) {
+                return res.status(404).json({ message: 'No assigned exams found' });
             }
-            await connection.end();
             res.json(exams);
         } catch (error) {
             console.error('Get assigned exams for student error:', error);
@@ -934,14 +1040,23 @@ module.exports = {
             let aiTag = {};
             try {
                 aiTag = JSON.parse(response.data.choices[0].message.content);
+                if (!aiTag || !aiTag.topic || !aiTag.difficulty) {
+                    throw new Error('Invalid AI response structure');
+                }
             } catch (parseError) {
                 aiTag = { raw: response.data.choices[0].message.content };
                 console.error('Error parsing AI response:', parseError);
+                return res.status(400).json({ message: 'Invalid AI response structure' });
             }
             res.json({ tag: aiTag });
         } catch (error) {
-            console.error('AI tagQuestion error:', error);
-            res.status(500).json({ message: 'AI tagging failed', error: error.message });
+            if (error instanceof Error) {
+                console.error('AI tagQuestion error:', error);
+                res.status(500).json({ message: 'AI tagging failed', error: error.message });
+            } else {
+                console.error('AI tagQuestion error:', error);
+                res.status(500).json({ message: 'AI tagging failed', error: 'Internal Server Error' });
+            }
         }
     },
 
@@ -952,7 +1067,9 @@ module.exports = {
             if (!topic) {
                 return res.status(400).json({ message: 'topic is required' });
             }
+            
             const prompt = `Generate ${count} ${difficulty} level multiple-choice questions on the topic "${topic}". For each question, provide 4 options and indicate the correct answer. Respond in JSON array format: [{"question": "...", "options": ["A", "B", "C", "D"], "answer": "A"}]`;
+            
             const response = await axios.post(
                 'https://api.openai.com/v1/chat/completions',
                 {
@@ -961,22 +1078,27 @@ module.exports = {
                 },
                 {
                     headers: {
-                        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
                         'Content-Type': 'application/json'
                     }
                 }
             );
-            // Try to parse the AI's JSON response
-            let questions = [];
+
             if (!response || !response.data || !response.data.choices || !response.data.choices[0] || !response.data.choices[0].message || !response.data.choices[0].message.content) {
                 throw new Error('Invalid response structure from OpenAI');
             }
+
+            let questions = [];
             try {
                 questions = JSON.parse(response.data.choices[0].message.content);
+                if (!Array.isArray(questions)) {
+                    throw new Error('Parsed questions is not an array');
+                }
             } catch (parseError) {
-                questions = [{ raw: response.data.choices[0].message.content }];
                 console.error('Error parsing AI response:', parseError);
+                return res.status(500).json({ message: 'Failed to parse AI response', error: parseError.message });
             }
+            
             res.json({ questions });
         } catch (error) {
             console.error('AI generateExamFromTopic error:', error);
@@ -997,6 +1119,9 @@ module.exports = {
             if (!connection) {
                 throw new Error('Database connection failed');
             }
+            if (!connection || typeof connection.execute !== 'function') {
+                throw new Error('Connection is invalid or does not have execute method');
+            }
             await connection.execute(
                 'UPDATE exams SET duration = ? WHERE exam_id = ?',
                 [timer, examId]
@@ -1004,14 +1129,24 @@ module.exports = {
             await connection.end();
             res.json({ message: 'Exam timer updated successfully' });
         } catch (error) {
-            console.error('Set exam timer error:', error);
-            res.status(500).json({ message: 'Error setting exam timer', error: error.message });
+            if (error instanceof Error) {
+                console.error('Set exam timer error:', error.message, error.stack);
+            } else {
+                console.error('Set exam timer error:', error);
+            }
+            res.status(500).json({ message: 'Error setting exam timer', error: error?.message });
         } finally {
             if (connection) {
                 try {
-                    await connection.end();
+                    if (typeof connection.end === 'function') {
+                        await connection.end();
+                    }
                 } catch (endError) {
-                    console.error('Error closing connection:', endError);
+                    if (endError instanceof Error) {
+                        console.error('Error closing connection:', endError.message, endError.stack);
+                    } else {
+                        console.error('Error closing connection:', endError);
+                    }
                 }
             }
         }
@@ -1031,15 +1166,21 @@ module.exports = {
                     'SELECT question_id, question_text, correct_answer, explanation FROM questions WHERE exam_id = ?',
                     [examId]
                 );
+                if (!questions || !Array.isArray(questions)) {
+                    throw new Error('Invalid response from database');
+                }
                 await connection.end();
 
                 const review = answers.map(ans => {
                     const q = questions.find(q => q.question_id === ans.questionId);
-                    const questionText = q ? q.question_text : '';
+                    if (!q) {
+                        throw new Error(`Question ${ans.questionId} not found`);
+                    }
+                    const questionText = q.question_text;
                     const yourAnswer = ans.answer;
-                    const correctAnswer = q ? q.correct_answer : '';
-                    const isCorrect = q && q.correct_answer === ans.answer;
-                    const explanation = q ? q.explanation : '';
+                    const correctAnswer = q.correct_answer;
+                    const isCorrect = q.correct_answer === ans.answer;
+                    const explanation = q.explanation;
 
                     return {
                         questionId: ans.questionId,

@@ -7,22 +7,31 @@ const { dbConfig } = require('../config/database');
 module.exports = {
     // Faculty Performance Analytics
     getFacultyPerformance: async (req, res) => {
+        let connection = null;
         try {
             const { facultyId } = req.params;
             if (!facultyId) {
                 return res.status(400).json({ message: 'facultyId is required' });
             }
 
+            connection = await mysql.createConnection(dbConfig);
+            if (!connection) {
+                throw new Error('Database connection failed');
+            }
+
             const contributions = await facultyModel.getFacultyContributions(facultyId);
             if (!contributions) {
+                await connection.end();
                 return res.status(404).json({ message: 'No faculty contributions found' });
             }
 
             const examStats = await facultyModel.getFacultyExamStats(facultyId);
             if (!examStats) {
+                await connection.end();
                 return res.status(404).json({ message: 'No faculty exam statistics found' });
             }
 
+            await connection.end();
             res.json({
                 contributions,
                 examStats
@@ -30,6 +39,14 @@ module.exports = {
         } catch (error) {
             console.error('Faculty performance error:', error);
             res.status(500).json({ message: 'Error fetching faculty performance' });
+        } finally {
+            if (connection) {
+                try {
+                    await connection.end();
+                } catch (endError) {
+                    console.error('Error closing connection:', endError);
+                }
+            }
         }
     },
 
@@ -46,10 +63,19 @@ module.exports = {
                 return res.status(404).json({ message: 'No LSRW analytics found' });
             }
 
+            if (!Array.isArray(analytics) || analytics.length === 0) {
+                throw new Error('No LSRW analytics found');
+            }
+
+            const firstElement = analytics[0];
+            if (!firstElement || !firstElement.topic || !firstElement.average_score || !firstElement.total_assessments) {
+                throw new Error('Invalid LSRW analytics structure');
+            }
+
             res.json(analytics);
         } catch (error) {
             console.error('LSRW analytics error:', error);
-            res.status(500).json({ message: 'Error fetching LSRW analytics' });
+            res.status(500).json({ message: 'Error fetching LSRW analytics', error: error.message });
         }
     },
 
@@ -64,25 +90,36 @@ module.exports = {
 
             const comparison = await facultyModel.getBatchComparison(batchYear, examType);
 
-            if (!comparison) {
+            if (!comparison || !Array.isArray(comparison) || comparison.length === 0) {
                 return res.status(404).json({ message: 'No batch comparison found' });
             }
 
             res.json(comparison);
         } catch (error) {
             console.error('Batch comparison error:', error);
-            res.status(500).json({ message: 'Error fetching batch comparison' });
+            res.status(500).json({ message: 'Error fetching batch comparison', error: error.message });
         }
     },
 
     // Generate PDF Report
     generatePDFReport: async (req, res) => {
+        let connection = null;
         try {
             const { facultyId } = req.params;
+            if (!facultyId) {
+                return res.status(400).json({ message: 'facultyId is required' });
+            }
+
+            connection = await mysql.createConnection(dbConfig);
+            if (!connection) {
+                throw new Error('Database connection failed');
+            }
+
             const contributions = await facultyModel.getFacultyContributions(facultyId);
             const examStats = await facultyModel.getFacultyExamStats(facultyId);
 
-            if (!contributions || !examStats) {
+            if (!contributions || !Array.isArray(examStats)) {
+                await connection.end();
                 return res.status(404).json({ message: 'No faculty data found' });
             }
 
@@ -94,7 +131,7 @@ module.exports = {
             // Add content to PDF
             doc.fontSize(20).text('Faculty Performance Report', { align: 'center' });
             doc.moveDown();
-            
+
             doc.fontSize(16).text('Contributions Summary');
             doc.fontSize(12).text(`Exams Created: ${contributions.exams_created ?? 0}`);
             doc.text(`Questions Contributed: ${contributions.questions_contributed ?? 0}`);
@@ -105,7 +142,7 @@ module.exports = {
             examStats.forEach(stat => {
                 doc.fontSize(14).text(stat.exam_name ?? 'Unknown');
                 doc.fontSize(12).text(`Total Participants: ${stat.total_participants ?? 0}`);
-                doc.text(`Average Score: ${stat.average_score?.toFixed(2) ?? 'N/A'}%`);
+                doc.text(`Average Score: ${stat.average_score ? `${stat.average_score.toFixed(2)}%` : 'N/A'}`);
                 doc.text(`Passing Count: ${stat.passing_count ?? 0}`);
                 doc.moveDown();
             });
@@ -114,6 +151,14 @@ module.exports = {
         } catch (error) {
             console.error('PDF generation error:', error);
             res.status(500).json({ message: 'Error generating PDF report' });
+        } finally {
+            if (connection) {
+                try {
+                    await connection.end();
+                } catch (endError) {
+                    console.error('Error closing connection:', endError);
+                }
+            }
         }
     },
 
@@ -135,22 +180,28 @@ module.exports = {
             worksheet.addRow(['Faculty Performance Report']);
             worksheet.addRow([]);
             worksheet.addRow(['Contributions Summary']);
-            worksheet.addRow(['Exams Created', contributions.exams_created ?? 0]);
-            worksheet.addRow(['Questions Contributed', contributions.questions_contributed ?? 0]);
-            worksheet.addRow(['Students Assessed', contributions.students_assessed ?? 0]);
+
+            if (contributions) {
+                worksheet.addRow(['Exams Created', contributions.exams_created ?? 0]);
+                worksheet.addRow(['Questions Contributed', contributions.questions_contributed ?? 0]);
+                worksheet.addRow(['Students Assessed', contributions.students_assessed ?? 0]);
+            }
             worksheet.addRow([]);
 
             // Exam Statistics
             worksheet.addRow(['Exam Statistics']);
             worksheet.addRow(['Exam Name', 'Total Participants', 'Average Score', 'Passing Count']);
-            examStats.forEach(stat => {
-                worksheet.addRow([
-                    stat.exam_name ?? 'Unknown',
-                    stat.total_participants ?? 0,
-                    stat.average_score ? `${stat.average_score.toFixed(2)}%` : 'N/A',
-                    stat.passing_count ?? 0
-                ]);
-            });
+
+            if (examStats) {
+                examStats.forEach(stat => {
+                    worksheet.addRow([
+                        stat.exam_name ?? 'Unknown',
+                        stat.total_participants ?? 0,
+                        stat.average_score ? `${stat.average_score.toFixed(2)}%` : 'N/A',
+                        stat.passing_count ?? 0
+                    ]);
+                });
+            }
 
             res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             res.setHeader('Content-Disposition', `attachment; filename=faculty_report_${facultyId}.xlsx`);
@@ -182,7 +233,7 @@ module.exports = {
 
             connection = await mysql.createConnection(dbConfig);
             if (!connection) {
-                return res.status(500).json({ message: 'Error connecting to database' });
+                throw new Error('Database connection failed');
             }
 
             const [existing] = await connection.execute(
@@ -200,8 +251,7 @@ module.exports = {
             );
 
             if (!result || !result.insertId) {
-                await connection.end();
-                return res.status(500).json({ message: 'Error adding faculty' });
+                throw new Error('Error adding faculty');
             }
 
             await connection.end();
@@ -218,7 +268,7 @@ module.exports = {
 
     // List all faculty under a specific college
     getAllFaculty: async (req, res) => {
-        let connection;
+        let connection = null;
         try {
             const { role, collegeId: userCollegeId, id: userId } = req.user;
             let collegeId = req.query.collegeId;
@@ -251,7 +301,7 @@ module.exports = {
                 params.push(collegeId);
             }
             const [faculty] = await connection.execute(query, params);
-            if (!faculty) {
+            if (!faculty || faculty.length === 0) {
                 await connection.end();
                 return res.status(404).json({ message: 'No faculty found' });
             }
@@ -260,6 +310,14 @@ module.exports = {
         } catch (error) {
             console.error('Error fetching faculty:', error);
             res.status(500).json({ message: 'Error fetching faculty', error: error.message });
+        } finally {
+            if (connection) {
+                try {
+                    await connection.end();
+                } catch (endError) {
+                    console.error('Error closing connection:', endError);
+                }
+            }
         }
     },
 
@@ -277,23 +335,31 @@ module.exports = {
                 'SELECT * FROM faculty WHERE id = ?',
                 [facultyId]
             );
-            await connection.end();
             if (!faculty || faculty.length === 0) {
+                await connection.end();
                 return res.status(404).json({ message: 'Faculty not found' });
             }
-            if (role === 'faculty' && faculty[0].id !== userId) {
+            const facultyMember = faculty[0];
+            if (role === 'faculty' && facultyMember.id !== userId) {
+                await connection.end();
                 return res.status(403).json({ message: 'Not authorized to view this faculty' });
             }
-            if (role === 'college_admin' && faculty[0].college_id !== userCollegeId) {
+            if (role === 'college_admin' && facultyMember.college_id !== userCollegeId) {
+                await connection.end();
                 return res.status(403).json({ message: 'Not authorized to view this faculty' });
             }
-            res.json(faculty[0]);
+            await connection.end();
+            res.json(facultyMember);
         } catch (error) {
             console.error('Error fetching faculty:', error);
             res.status(500).json({ message: 'Error fetching faculty', error: error.message });
         } finally {
             if (connection) {
-                await connection.end();
+                try {
+                    await connection.end();
+                } catch (endError) {
+                    console.error('Error closing connection:', endError);
+                }
             }
         }
     },
@@ -307,6 +373,9 @@ module.exports = {
             const { name, email, subject } = req.body;
             if (!name && !email && !subject) {
                 return res.status(400).json({ message: 'No fields to update' });
+            }
+            if (!facultyId) {
+                return res.status(400).json({ message: 'Faculty ID is required' });
             }
 
             connection = await mysql.createConnection(dbConfig);
@@ -351,14 +420,18 @@ module.exports = {
             res.status(500).json({ message: 'Error updating faculty', error: error.message });
         } finally {
             if (connection) {
-                await connection.end();
+                try {
+                    await connection.end();
+                } catch (endError) {
+                    console.error('Error closing connection:', endError);
+                }
             }
         }
     },
 
     // Remove or deactivate a faculty account
     deleteFaculty: async (req, res) => {
-        let connection;
+        let connection = null;
         try {
             const { role, collegeId: userCollegeId, id: userId } = req.user;
             const { facultyId } = req.params;
@@ -368,7 +441,7 @@ module.exports = {
 
             connection = await mysql.createConnection(dbConfig);
             if (!connection) {
-                return res.status(500).json({ message: 'Error connecting to database' });
+                throw new Error('Database connection failed');
             }
 
             const [faculty] = await connection.execute(
@@ -387,7 +460,7 @@ module.exports = {
                 await connection.end();
                 return res.status(403).json({ message: 'Not authorized to delete this faculty' });
             }
-            const [result] = await connection.execute(
+            const result = await connection.execute(
                 'DELETE FROM faculty WHERE id = ?',
                 [facultyId]
             );
@@ -401,7 +474,11 @@ module.exports = {
             res.status(500).json({ message: 'Error deleting faculty', error: error.message });
         } finally {
             if (connection) {
-                await connection.end();
+                try {
+                    await connection.end();
+                } catch (endError) {
+                    console.error('Error closing connection:', endError);
+                }
             }
         }
     },
@@ -434,9 +511,13 @@ module.exports = {
                 await connection.end();
                 return res.status(403).json({ message: 'Not authorized to assign subject to this faculty' });
             }
+            if (!faculty[0].subject) {
+                faculty[0].subject = [];
+            }
+            faculty[0].subject.push(subject);
             await connection.execute(
                 'UPDATE faculty SET subject = ? WHERE id = ?',
-                [subject, facultyId]
+                [faculty[0].subject, facultyId]
             );
             await connection.end();
             res.json({ message: 'Subject assigned to faculty' });
@@ -456,18 +537,89 @@ module.exports = {
 
     // Exam creation by faculty
     createExamByFaculty: async (req, res) => {
-        // TODO: Implement logic for faculty to create exam
-        const { title, description } = req.body;
-        if (!title || !description) {
-            return res.status(400).json({ message: 'title and description are required' });
+        let connection = null;
+        try {
+            const { role, collegeId: userCollegeId } = req.user;
+            const { title, description } = req.body;
+            if (role !== 'faculty') {
+                return res.status(403).json({ message: 'Not authorized to create exam' });
+            }
+            if (!title || !description) {
+                return res.status(400).json({ message: 'Title and description are required' });
+            }
+            if (!userCollegeId) {
+                return res.status(400).json({ message: 'College ID is required' });
+            }
+            connection = await mysql.createConnection(dbConfig);
+            if (!connection) {
+                throw new Error('Database connection failed');
+            }
+            const [result] = await connection.execute(
+                'INSERT INTO exams (exam_name, exam_type, created_by, college_id) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)',
+                [title, 'faculty', req.user.id, userCollegeId]
+            );
+            if (!result || !result.insertId) {
+                throw new Error('Error creating exam');
+            }
+            await connection.end();
+            res.json({ message: 'Exam created by faculty', examId: result.insertId });
+        } catch (error) {
+            console.error('Create exam by faculty error:', error);
+            res.status(500).json({ message: 'Error creating exam', error: error.message });
+        } finally {
+            if (connection) {
+                try {
+                    await connection.end();
+                } catch (endError) {
+                    console.error('Error closing connection:', endError);
+                }
+            }
         }
-        res.json({ message: 'Exam created by faculty', title, description });
     },
 
     // Content upload by faculty
     uploadContentByFaculty: async (req, res) => {
-        // TODO: Implement logic for faculty to upload content
-        res.json({ message: 'Content uploaded by faculty' });
+        let connection = null;
+        try {
+            const { role, collegeId: userCollegeId } = req.user;
+            const { title, description, type, url } = req.body;
+            if (role !== 'faculty') {
+                return res.status(403).json({ message: 'Not authorized to upload content' });
+            }
+            if (!title || !description || !type || !url) {
+                return res.status(400).json({ message: 'Title, description, type and url are required' });
+            }
+            if (!userCollegeId) {
+                return res.status(400).json({ message: 'College ID is required' });
+            }
+            if (typeof title !== 'string' || typeof description !== 'string' || typeof type !== 'string' || typeof url !== 'string') {
+                return res.status(400).json({ message: 'Title, description, type and url must be strings' });
+            }
+            connection = await mysql.createConnection(dbConfig);
+            if (!connection) {
+                throw new Error('Database connection failed');
+            }
+            const [result] = await connection.execute(
+                'INSERT INTO study_materials (title, description, type, url, college_id, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+                [title, description, type, url, userCollegeId, req.user.id]
+            );
+            if (!result || !result.insertId) {
+                throw new Error('Error uploading content');
+            }
+            await connection.end();
+            res.json({ message: 'Content uploaded by faculty', contentId: result.insertId });
+        } catch (error) {
+            console.error('Upload content by faculty error:', error);
+            res.status(500).json({ message: 'Error uploading content', error: error.message });
+        } finally {
+            if (connection) {
+                try {
+                    await connection.end();
+                } catch (endError) {
+                    console.error('Error closing connection:', endError);
+                }
+            }
+        }
     },
 
     // Let faculty manage or evaluate a specific exam
@@ -480,8 +632,8 @@ module.exports = {
                 return res.status(403).json({ message: 'Not authorized to assign exam' });
             }
 
-            if (!facultyId || !examId) {
-                return res.status(400).json({ message: 'Required fields missing' });
+            if (!facultyId || !examId || typeof facultyId !== 'number' || typeof examId !== 'number') {
+                return res.status(400).json({ message: 'Required fields missing or invalid' });
             }
 
             connection = await mysql.createConnection(dbConfig);
@@ -501,10 +653,14 @@ module.exports = {
                 return res.status(403).json({ message: 'Not authorized to assign exam to this faculty' });
             }
 
-            await connection.execute(
+            const [result] = await connection.execute(
                 'INSERT INTO faculty_exams (faculty_id, exam_id) VALUES (?, ?)',
                 [facultyId, examId]
             );
+
+            if (!result || !result.insertId) {
+                throw new Error('Error assigning exam');
+            }
 
             await connection.end();
 
@@ -566,9 +722,8 @@ module.exports = {
                 [facultyId]
             );
 
-            await connection.end();
-
             if (!activity || activity.length === 0) {
+                await connection.end();
                 return res.status(404).json({ message: 'No activity found for this faculty' });
             }
 
@@ -632,11 +787,12 @@ module.exports = {
                 [facultyId]
             );
 
-            await connection.end();
-
-            if (!examsHandled || !studentsAssessed) {
+            if (!examsHandled || examsHandled === null || !studentsAssessed || studentsAssessed === null) {
+                await connection.end();
                 return res.status(404).json({ message: 'No dashboard stats found for this faculty' });
             }
+
+            await connection.end();
 
             res.json({
                 examsHandled,
@@ -654,5 +810,63 @@ module.exports = {
                 }
             }
         }
+    },
+
+    // Bulk upload questions via Excel
+    uploadQuestionBank: async (req, res) => {
+        let connection = null;
+        try {
+            if (!req.file || !req.file.buffer) {
+                return res.status(400).json({ message: 'Excel file required' });
+            }
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.load(req.file.buffer);
+
+            if (!workbook.worksheets || workbook.worksheets.length === 0) {
+                return res.status(400).json({ message: 'No worksheets found in the Excel file' });
+            }
+
+            const sheet = workbook.worksheets[0];
+            const questions = [];
+
+            sheet.eachRow((row, rowNumber) => {
+                if (rowNumber === 1) return; // skip header
+                const [question, optionA, optionB, optionC, optionD, correct, marks] = row.values.slice(1);
+
+                if (!question || !optionA || !optionB || !optionC || !optionD || !correct) {
+                    console.warn(`Invalid question format at row ${rowNumber}, skipping.`);
+                    return;
+                }
+
+                questions.push({ question, optionA, optionB, optionC, optionD, correct, marks: marks || 1 });
+            });
+
+            if (questions.length === 0) {
+                return res.status(400).json({ message: 'No valid questions found' });
+            }
+
+            connection = await mysql.createConnection(dbConfig);
+
+            for (const q of questions) {
+                await connection.execute(
+                    'INSERT INTO questions (question, optionA, optionB, optionC, optionD, correct, marks) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    [q.question, q.optionA, q.optionB, q.optionC, q.optionD, q.correct, q.marks]
+                );
+            }
+            
+            res.json({ message: `${questions.length} questions uploaded successfully` });
+        } catch (error) {
+            console.error('Error uploading question bank:', error);
+            res.status(500).json({ message: 'Error uploading question bank', error: error.message });
+        } finally {
+            if (connection) {
+                try {
+                    await connection.end();
+                } catch (endError) {
+                    console.error('Error closing database connection:', endError);
+                }
+            }
+        }
     }
+
 };

@@ -1,5 +1,11 @@
 // User Controller
 
+const crypto = require('crypto');
+const bcrypt = require('bcrypt');
+const mysql = require('mysql2/promise');
+const { dbConfig } = require('../config/database');
+const PasswordReset = require('../models/passwordReset');
+
 const getAllUsers = async (req, res) => {
     let connection = null;
     try {
@@ -9,13 +15,17 @@ const getAllUsers = async (req, res) => {
         }
 
         const [users] = await connection.execute('SELECT * FROM users');
-        if (!users) {
+        if (!users || !Array.isArray(users) || users.length === 0) {
             throw new Error('No users found');
         }
         res.json(users);
     } catch (error) {
         console.error('Get all users error:', error);
-        res.status(500).json({ message: 'Error fetching users', error: error.message });
+        if (error instanceof Error) {
+            res.status(500).json({ message: 'Error fetching users', error: error.message });
+        } else {
+            res.status(500).json({ message: 'Error fetching users', error: 'Unknown error occurred' });
+        }
     } finally {
         if (connection && connection.end) {
             try {
@@ -45,16 +55,24 @@ const getUserById = async (req, res) => {
             [userId]
         );
 
-        if (!users || users.length === 0) {
+        if (!users || !Array.isArray(users) || users.length === 0) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        res.json(users[0]);
+        const user = users[0];
+        if (!user || typeof user !== 'object') {
+            throw new Error('User not found');
+        }
+
+        res.json(user);
     } catch (error) {
+        if (!(error instanceof Error)) {
+            error = new Error('Unknown error occurred');
+        }
         console.error('Get user by ID error:', error);
         res.status(500).json({ message: 'Error fetching user', error: error.message });
     } finally {
-        if (connection) {
+        if (connection && connection.end) {
             try {
                 await connection.end();
             } catch (endError) {
@@ -74,7 +92,6 @@ const createUser = async (req, res) => {
         }
 
         connection = await mysql.createConnection(dbConfig);
-
         if (!connection) {
             throw new Error('Failed to establish a database connection');
         }
@@ -102,6 +119,14 @@ const createUser = async (req, res) => {
         await connection.end();
         res.status(201).json({ message: 'User created successfully', userId: result.insertId });
     } catch (error) {
+        if (error instanceof Error && error.message) {
+            console.error('Create user error:', error.message);
+            res.status(500).json({ message: 'Error creating user', error: error.message });
+        } else {
+            console.error('Create user error:', JSON.stringify(error));
+            res.status(500).json({ message: 'Error creating user', error: 'Unknown error occurred' });
+        }
+
         if (connection) {
             try {
                 await connection.end();
@@ -109,9 +134,6 @@ const createUser = async (req, res) => {
                 console.error('Error closing the connection:', endError);
             }
         }
-
-        console.error('Create user error:', error);
-        res.status(500).json({ message: 'Error creating user', error: error.message });
     }
 };
 
@@ -174,15 +196,21 @@ const updateUser = async (req, res) => {
         await connection.end();
         res.json({ message: 'User updated successfully' });
     } catch (error) {
-        if (connection) {
+        if (error instanceof Error) {
+            console.error('Update user error:', error.message);
+            res.status(500).json({ message: 'Error updating user', error: error.message });
+        } else {
+            console.error('Update user error:', JSON.stringify(error));
+            res.status(500).json({ message: 'Error updating user', error: 'Unknown error occurred' });
+        }
+
+        if (connection && connection.end) {
             try {
                 await connection.end();
             } catch (endError) {
                 console.error('Error closing the connection:', endError);
             }
         }
-        console.error('Update user error:', error);
-        res.status(500).json({ message: 'Error updating user', error: error.message });
     }
 };
 
@@ -202,13 +230,11 @@ const deleteUser = async (req, res) => {
         const [result] = await connection.execute('DELETE FROM users WHERE userId = ?', [userId]);
 
         if (!result || result.affectedRows === 0) {
-            await connection.end();
+            await connection.end().catch(endError => console.error('Error closing the connection:', endError));
             return res.status(404).json({ message: 'User not found' });
         }
 
-        if (connection) {
-            await connection.end().catch(endError => console.error('Error closing the connection:', endError));
-        }
+        await connection.end().catch(endError => console.error('Error closing the connection:', endError));
 
         res.json({ message: 'User deleted successfully' });
     } catch (error) {
@@ -217,7 +243,75 @@ const deleteUser = async (req, res) => {
         }
 
         console.error('Delete user error:', error);
-        res.status(500).json({ message: 'Error deleting user', error: error.message });
+        res.status(500).json({ message: 'Error deleting user', error: error?.message || 'Unknown error' });
+    }
+};
+
+// Request password reset (send email with token)
+const forgotPassword = async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: 'Email is required' });
+
+    let connection = null;
+    try {
+        connection = await mysql.createConnection(dbConfig);
+        const [users] = await connection.execute('SELECT id FROM users WHERE email = ?', [email]);
+
+        if (!users || users.length === 0) {
+            await connection.end().catch(endError => console.error('Error closing the connection:', endError));
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const userId = users[0]?.id;
+        if (!userId) {
+            await connection.end().catch(endError => console.error('Error closing the connection:', endError));
+            return res.status(500).json({ message: 'Error processing request', error: 'User ID is missing' });
+        }
+
+        const token = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 1000 * 60 * 30); // 30 min
+
+        await PasswordReset.create({ userId, token, expiresAt });
+
+        await connection.end().catch(endError => console.error('Error closing the connection:', endError));
+
+        // TODO: Send email with reset link (token)
+        res.json({ message: 'Password reset link sent to email (mock)', token });
+    } catch (error) {
+        if (connection) {
+            await connection.end().catch(endError => console.error('Error closing the connection:', endError));
+        }
+
+        console.error('Error processing request:', error);
+        res.status(500).json({ message: 'Error processing request', error: error?.message || 'Unknown error' });
+    }
+};
+
+// Reset password using token
+const resetPassword = async (req, res) => {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) return res.status(400).json({ message: 'Token and newPassword required' });
+    let connection = null;
+    try {
+        const reset = await PasswordReset.findByToken(token);
+        if (!reset) return res.status(400).json({ message: 'Invalid or expired token' });
+        const userId = reset?.user_id;
+        if (!userId) {
+            throw new Error('User ID is missing');
+        }
+        connection = await mysql.createConnection(dbConfig);
+        const hashed = await bcrypt.hash(newPassword, 10);
+        const [updateResult] = await connection.execute('UPDATE users SET password = ? WHERE id = ?', [hashed, userId]);
+        if (updateResult.affectedRows === 0) {
+            throw new Error('Failed to reset password');
+        }
+        await PasswordReset.markUsed(token);
+        await connection.end();
+        res.json({ message: 'Password reset successful' });
+    } catch (error) {
+        if (connection) await connection.end().catch(endError => console.error('Error closing the connection:', endError));
+        console.error('Error resetting password:', error);
+        res.status(500).json({ message: 'Error resetting password', error: error.message });
     }
 };
 
@@ -226,5 +320,7 @@ module.exports = {
     getUserById,
     createUser,
     updateUser,
-    deleteUser
+    deleteUser,
+    forgotPassword,
+    resetPassword
 };

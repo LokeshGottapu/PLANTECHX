@@ -17,5 +17,7 @@ masterRouter.post('/broadcast', masterController.broadcastMessageToAllAdmins);
 masterRouter.put('/license', masterController.manageLicenseLimits);
 masterRouter.put('/college/:collegeId/block', masterController.blockCollege);
 masterRouter.put('/user/:userId/block', masterController.blockUser);
+masterRouter.get('/college/:collegeId/isolation', masterController.getMultiTenancyIsolation);
+masterRouter.put('/college/:collegeId/isolation', masterController.setMultiTenancyIsolation);
 
 module.exports = masterRouter;
