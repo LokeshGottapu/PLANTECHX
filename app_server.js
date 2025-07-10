@@ -1,100 +1,124 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-const { authenticateToken, authorizeRole } = require('./middleware/auth');
-const { handleUserUpload, handleQuestionBankUpload, handleReportUpload, deleteFile } = require('./controllers/fileController');
-const examController = require('./controllers/examController');
-const collegeController = require('./controllers/collegeController');
-const { register, login, forgotPassword, resetPassword } = require('./controllers/authController');
-const upload = require('./middleware/multerConfig');
-require('dotenv').config();
+// 📦 Load Environment Variables 
+require('dotenv').config(); 
 
-const app = express();
+// 🧠 Import Core Modules 
+const express = require('express'); 
+const cors = require('cors'); 
+const helmet = require('helmet'); // Security headers
+const morgan = require('morgan'); // HTTP request logger
+const rateLimit = require('express-rate-limit'); // Rate limiting
 
-// Security middleware
-app.use(helmet());
+// 🔐 Import Middlewares 
+const { verifyToken } = require('./middleware/auth'); 
+const { validate } = require('./middleware/validation');
+const { checkAdmin } = require('./middleware/checkAdmin');
+const { checkMaster } = require('./middleware/checkMaster');
 
-// Body parser configuration with size limits
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: false, limit: '10mb' }));
+// 🛣️ Import Routes 
+const authRoutes = require('./routes/authRoutes'); 
+const userRoutes = require('./routes/userRoutes'); 
+const collegeRoutes = require('./routes/collegeRoutes'); 
+const examRoutes = require('./routes/examRoutes'); 
+const fileRoutes = require('./routes/fileRoutes');
+const resultRoutes = require('./routes/resultRoutes'); 
+const adminRoutes = require('./routes/adminRoutes'); 
+const facultyRoutes = require('./routes/facultyRoutes'); 
+const questionRoutes = require('./routes/questionRoutes'); 
+const masterRoutes = require('./routes/masterRoutes'); 
+const aiTestRequestRoutes = require('./routes/aiTestRequestRoutes');
 
-// CORS configuration
-app.use(cors({
-    origin: process.env.NODE_ENV === 'production' 
-        ? process.env.FRONTEND_URL 
-        : '*',
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}));
+// 🛠️ Initialize App 
+const app = express(); 
 
-// Rate limiting configuration
-const apiLimiter = rateLimit({
-    windowMs: process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000, // 15 minutes
-    max: process.env.RATE_LIMIT_MAX_REQUESTS || 100, // limit each IP
-    message: {
-        error: 'Too many requests from this IP, please try again later.'
-    }
+// 🛡️ Security Configuration
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100 // limit each IP to 100 requests per windowMs
 });
 
-// Apply rate limiting to all routes
-app.use(apiLimiter);
-
-// More strict rate limit for authentication routes
+// 🔒 Stricter limits for auth routes
 const authLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
-    max: 5, // 5 attempts per hour
-    message: {
-        error: 'Too many login attempts, please try again later.'
-    }
+    max: 5 // limit each IP to 5 login requests per hour
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
-});
+// 🛡️ Middleware Setup 
+app.use(cors({
+    origin: process.env.NODE_ENV === 'production' ? process.env.FRONTEND_URL : '*',
+    credentials: true
+})); 
+app.use(helmet()); 
+app.use(morgan('dev')); 
+app.use(express.json({ limit: '50mb' })); 
+app.use(express.urlencoded({ extended: true, limit: '50mb' })); 
+app.use(limiter);
 
-// Auth routes with rate limiting
-app.post('/auth/register', authLimiter, register);
-app.post('/auth/login', authLimiter, login);
-app.post('/auth/forgot-password', authLimiter, forgotPassword);
-app.post('/auth/reset-password', authLimiter, resetPassword);
+// 🌐 API Routes 
+app.use('/api/auth', authLimiter, authRoutes);             // 🔐 Authentication
+app.use('/api/users', verifyToken, userRoutes);           // 👥 User Management
+app.use('/api/colleges', verifyToken, collegeRoutes);     // 🏫 College Management
+app.use('/api/exams', verifyToken, examRoutes);           // 📝 Exam Management
+app.use('/api/files', verifyToken, fileRoutes);           // 📁 File Management
+app.use('/api/results', verifyToken, resultRoutes);       // 📊 Results
+app.use('/api/admin', [verifyToken, checkAdmin], adminRoutes);           // 👨‍💼 Admin
+app.use('/api/faculty', [verifyToken, checkAdmin], facultyRoutes);       // 👩‍🏫 Faculty
+app.use('/api/questions', verifyToken, questionRoutes);   // ❓ Questions
+app.use('/api/master', [verifyToken, checkMaster], masterRoutes);        // 🎓 Master Admin
+app.use('/api/ai-test', aiTestRequestRoutes); // AI Test Request APIs
 
-// College Management Routes
-app.post('/colleges', authenticateToken, authorizeRole('admin'), collegeController.createCollege);
-app.get('/colleges', authenticateToken, collegeController.getColleges);
-app.put('/colleges/:collegeId/approve', authenticateToken, authorizeRole('admin'), collegeController.approveCollege);
-app.post('/colleges/admin', authenticateToken, authorizeRole('admin'), collegeController.assignCollegeAdmin);
-app.post('/colleges/lsrw-access', authenticateToken, authorizeRole('admin'), collegeController.grantLSRWAccess);
-app.get('/colleges/:collegeId/performance', authenticateToken, collegeController.getCollegePerformance);
+// ✅ Health Check 
+app.get('/health', (req, res) => { 
+    res.json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        environment: process.env.NODE_ENV
+    }); 
+}); 
 
-// Exam Management Routes
-app.post('/exams', authenticateToken, authorizeRole('faculty'), examController.createExam);
-app.post('/exams/questions', authenticateToken, authorizeRole('faculty'), examController.addQuestion);
-app.post('/exams/:examId/submit', authenticateToken, examController.submitExam);
-app.get('/exams/performance/:userId', authenticateToken, examController.getUserPerformance);
-app.post('/exams/ai-questions', authenticateToken, examController.generateAIQuestions);
-
-// File upload routes
-app.post('/upload/user', authenticateToken, upload.array('files'), handleUserUpload);
-app.post('/upload/question-bank', authenticateToken, authorizeRole('faculty'), upload.array('files'), handleQuestionBankUpload);
-app.post('/upload/report', authenticateToken, authorizeRole('admin'), upload.array('files'), handleReportUpload);
-app.delete('/files', authenticateToken, authorizeRole('admin'), deleteFile);
-
-// Global error handler
-app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(err.status || 500).json({
-        error: process.env.NODE_ENV === 'production' 
-            ? 'Internal Server Error' 
-            : err.message
+// ❌ Error Handling
+app.use((req, res, next) => {
+    res.status(404).json({
+        status: 'error',
+        message: 'Resource not found'
     });
 });
 
-const PORT = process.env.PORT || 5000;
+app.use((err, req, res, next) => { 
+    console.error('Error:', err.stack); 
+    res.status(err.status || 500).json({ 
+        status: 'error',
+        message: process.env.NODE_ENV === 'production' 
+            ? 'Internal Server Error' 
+            : err.message,
+        ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+    }); 
+}); 
 
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV}`);
+// 🚀 Server Startup
+const PORT = process.env.PORT || 5000; 
+
+app.listen(PORT, () => { 
+    console.log(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`); 
+}); 
+
+// Handle graceful shutdown
+process.on('SIGTERM', () => {
+    console.log('👋 SIGTERM received. Performing graceful shutdown...');
+    process.exit(0);
 });
+
+module.exports = app; // For testing
+
+// If you want to keep the SQL for reference, use a comment:
+/*
+CREATE TABLE ai_test_requests (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    requested_by INT,
+    content TEXT,
+    status ENUM('pending','approved','rejected','completed') DEFAULT 'pending',
+    generated_test JSON,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+*/

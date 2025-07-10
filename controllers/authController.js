@@ -21,7 +21,18 @@ const transporter = nodemailer.createTransport({
 });
 
 // Token generation for password reset and email verification
-const generateToken = () => crypto.randomBytes(32).toString('hex');
+const generateToken = () => {
+    if (!crypto || !crypto.randomBytes || !crypto.randomBytes.toString) {
+        throw new Error('crypto module is not available');
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    if (!token) {
+        throw new Error('Token generation failed');
+    }
+
+    return token;
+};
 
 const register = async (req, res) => {
     let connection;
@@ -53,6 +64,7 @@ const register = async (req, res) => {
         );
 
         if (existingUsers.length > 0) {
+            await connection.end();
             return res.status(409).json({ message: 'User already exists' });
         }
 
@@ -65,6 +77,11 @@ const register = async (req, res) => {
             'INSERT INTO users (username, email, password, role, createdAt) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)',
             [username, email, hashedPassword, role]
         );
+
+        if (!result || !result.insertId) {
+            await connection.end();
+            return res.status(500).json({ message: 'Error creating user' });
+        }
 
         const token = jwt.sign(
             { id: result.insertId, username, email, role },
@@ -108,11 +125,15 @@ const login = async (req, res) => {
             [email]
         );
 
-        if (users.length === 0) {
+        if (!users || users.length === 0) {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
         const user = users[0];
+        if (!user || !user.password) {
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
         const validPassword = await bcrypt.compare(password, user.password);
 
         if (!validPassword) {
@@ -146,7 +167,7 @@ const login = async (req, res) => {
 };
 
 const forgotPassword = async (req, res) => {
-    let connection;
+    let connection = null;
     try {
         const { email } = req.body;
         
@@ -164,7 +185,7 @@ const forgotPassword = async (req, res) => {
             [email]
         );
 
-        if (users.length === 0) {
+        if (!users || users.length === 0) {
             return res.status(404).json({ 
                 error: 'Not Found',
                 message: 'User not found' 
@@ -172,6 +193,10 @@ const forgotPassword = async (req, res) => {
         }
 
         const user = users[0];
+        if (!user) {
+            throw new Error('User not found');
+        }
+
         const resetToken = generateToken();
         const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour
 
@@ -233,7 +258,7 @@ const resetPassword = async (req, res) => {
             [token]
         );
 
-        if (users.length === 0) {
+        if (!users || users.length === 0) {
             return res.status(400).json({ 
                 error: 'Validation Error',
                 message: 'Invalid or expired reset token' 
@@ -241,13 +266,21 @@ const resetPassword = async (req, res) => {
         }
 
         const user = users[0];
+        if (!user) {
+            throw new Error('User retrieval failed');
+        }
+
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-        await connection.execute(
+        const [updateResult] = await connection.execute(
             'UPDATE users SET password = ?, reset_token = NULL, reset_token_expiry = NULL WHERE userId = ?',
             [hashedPassword, user.userId]
         );
+
+        if (updateResult.affectedRows === 0) {
+            throw new Error('Failed to reset password');
+        }
 
         res.json({ 
             message: 'Password reset successful',
@@ -270,6 +303,11 @@ const resetPassword = async (req, res) => {
 const verifyEmail = async (req, res) => {
     try {
         const { token } = req.params;
+
+        if (!token) {
+            return res.status(400).json({ message: 'Verification token is required' });
+        }
+
         const sql = 'SELECT * FROM users WHERE verification_token = ?';
         const users = await api_model.query(sql, [token]);
 
@@ -278,6 +316,11 @@ const verifyEmail = async (req, res) => {
         }
 
         const user = users[0];
+
+        if (!user) {
+            return res.status(500).json({ message: 'User retrieval failed' });
+        }
+
         await api_model.updateUser(user.userId, [
             { key: 'email_verified', value: true },
             { key: 'verification_token', value: null }
@@ -292,11 +335,18 @@ const verifyEmail = async (req, res) => {
 
 const updateProfile = async (req, res) => {
     try {
-        const { userId } = req.user;
-        const { username, email, currentPassword, newPassword } = req.body;
-        
+        const { userId } = req.user || {};
+        if (!userId) {
+            return res.status(401).json({ message: 'User ID is missing' });
+        }
+
+        const { username, email, currentPassword, newPassword } = req.body || {};
+        if (!req.body) {
+            return res.status(400).json({ message: 'Request body is missing' });
+        }
+
         const users = await api_model.getUser(userId);
-        if (users.length === 0) {
+        if (!users || users.length === 0) {
             return res.status(404).json({ message: 'User not found' });
         }
 
@@ -317,12 +367,101 @@ const updateProfile = async (req, res) => {
 
         if (updates.length > 0) {
             await api_model.updateUser(userId, updates);
+        } else {
+            return res.status(400).json({ message: 'No updates provided' });
         }
 
         res.json({ message: 'Profile updated successfully' });
     } catch (error) {
         console.error('Update profile error:', error);
-        res.status(500).json({ message: 'Error updating profile' });
+        res.status(500).json({ message: 'Error updating profile', error: error.message });
+    }
+};
+
+// Get user profile info
+const getProfile = async (req, res) => {
+    try {
+        if (!req.user || !req.user.userId) {
+            return res.status(401).json({ message: 'User ID is missing' });
+        }
+        const { userId } = req.user;
+        const users = await api_model.getUser(userId);
+        if (!users || users.length === 0) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        const { password, reset_token, reset_token_expiry, verification_token, ...userData } = users[0];
+        res.json({ user: userData });
+    } catch (error) {
+        console.error('Get profile error:', error);
+        res.status(500).json({ message: 'Error fetching profile', error: error.message });
+    }
+};
+
+// Resend email verification link
+const resendVerificationLink = async (req, res) => {
+    try {
+        if (!req.user || !req.user.userId) {
+            return res.status(401).json({ message: 'User ID is missing' });
+        }
+        const { userId } = req.user;
+        const users = await api_model.getUser(userId);
+        if (!users || users.length === 0) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        const user = users[0];
+        if (user.email_verified) {
+            return res.status(400).json({ message: 'Email already verified' });
+        }
+        const verificationToken = generateToken();
+        await api_model.updateUser(userId, [
+            { key: 'verification_token', value: verificationToken }
+        ]);
+        const verifyUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+        await transporter.sendMail({
+            to: user.email,
+            subject: 'Verify your email',
+            html: `Please click this link to verify your email: <a href="${verifyUrl}">Verify Email</a>`
+        });
+        res.json({ message: 'Verification link resent to email' });
+    } catch (error) {
+        console.error('Resend verification link error:', error);
+        res.status(500).json({ message: 'Error resending verification link', error: error.message });
+    }
+};
+
+// Invite admin (send invitation email)
+const inviteAdmin = async (req, res) => {
+    try {
+        const { email, role } = req.body;
+        if (!email || !role) {
+            return res.status(400).json({ message: 'Email and role are required' });
+        }
+        // Generate invitation token
+        const inviteToken = generateToken();
+        // Save invitation in DB (optional: create a pending user record)
+        if (!await api_model.createInvite(email, role, inviteToken)) {
+            return res.status(500).json({ message: 'Error saving admin invitation' });
+        }
+        const inviteUrl = `${process.env.FRONTEND_URL}/accept-invite?token=${inviteToken}`;
+        const mailOptions = {
+            to: email,
+            subject: 'Admin Invitation',
+            html: `You have been invited as an admin. Click here to accept: <a href="${inviteUrl}">Accept Invitation</a>`
+        };
+        if (process.env.NODE_ENV === 'production') {
+            // In production, send email only if the transporter is properly configured
+            if (!transporter || !transporter.sendMail) {
+                return res.status(500).json({ message: 'Error sending admin invitation. Transporter is not configured' });
+            }
+            await transporter.sendMail(mailOptions);
+        } else {
+            // In dev, log the email instead of sending it
+            console.log('Invite admin email sent:', mailOptions);
+        }
+        res.json({ message: 'Admin invitation sent' });
+    } catch (error) {
+        console.error('Invite admin error:', error);
+        res.status(500).json({ message: 'Error sending admin invitation', error: error.message });
     }
 };
 
@@ -332,5 +471,8 @@ module.exports = {
     forgotPassword,
     resetPassword,
     verifyEmail,
-    updateProfile
+    updateProfile,
+    getProfile,
+    resendVerificationLink,
+    inviteAdmin
 };

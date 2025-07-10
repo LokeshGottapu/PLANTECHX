@@ -1,0 +1,395 @@
+{
+  "info": {
+    "name": "PLANTECHX API Full Collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    
+    {
+      "name": "User Management",
+      "item": [
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }],
+            "url": { "raw": "http://localhost:5000/api/users", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "users"] }
+          }
+        },
+        {
+          "name": "Get User By ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }],
+            "url": { "raw": "http://localhost:5000/api/users/1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "users", "1"] }
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/users/1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "users", "1"] },
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"updated@example.com\"\n}" }
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }],
+            "url": { "raw": "http://localhost:5000/api/users/1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "users", "1"] }
+          }
+        },
+        {
+          "name": "User Registration",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/auth/register", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "auth", "register"] },
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"New User\",\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "File Management",
+      "item": [
+        {
+          "name": "Upload File",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/files/upload", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "files", "upload"] }
+          }
+        },
+        {
+          "name": "Get All Files",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }],
+            "url": { "raw": "http://localhost:5000/api/files", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "files"] }
+          }
+        },
+        {
+          "name": "Delete File",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }],
+            "url": { "raw": "http://localhost:5000/api/files/1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "files", "1"] }
+          }
+        },
+        {
+          "name": "Update/Rename File",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/files/1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "files", "1"] },
+            "body": { "mode": "raw", "raw": "{\n  \"filename\": \"renamed_file.pdf\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "AI Test Request",
+      "item": [
+        {
+          "name": "Submit AI Test Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/ai-test/request", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "ai-test", "request"] },
+            "body": { "mode": "raw", "raw": "{\n  \"content\": \"Generate a test on Algebra for 10th grade.\"\n}" }
+          }
+        },
+        {
+          "name": "Get Pending AI Test Requests",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }],
+            "url": { "raw": "http://localhost:5000/api/ai-test/requests", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "ai-test", "requests"] }
+          }
+        },
+        {
+          "name": "Generate Custom Test (Master)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }],
+            "url": { "raw": "http://localhost:5000/api/ai-test/request/1/generate", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "ai-test", "request", "1", "generate"] }
+          }
+        },
+        {
+          "name": "Update AI Test Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/ai-test/request/1/status", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "ai-test", "request", "1", "status"] },
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"Approved\"\n}" }
+          }
+        }
+      ]
+    }
+    ,
+    {
+      "name": "Admin Panel",
+      "item": [
+        { "name": "Create Student", "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/admin/students", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "admin", "students"] }, "body": { "mode": "raw", "raw": "{\n  \"name\": \"Student Name\",\n  \"email\": \"student@example.com\",\n  \"password\": \"password123\",\n  \"collegeId\": 1\n}" } } },
+        { "name": "Get All Students", "request": { "method": "GET", "header": [ { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/admin/students?collegeId=1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "admin", "students"], "query": [ { "key": "collegeId", "value": "1" } ] } } },
+        { "name": "Upload Study Material", "request": { "method": "POST", "header": [ { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/admin/materials", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "admin", "materials"] } } },
+        { "name": "Send Notification", "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/admin/notifications", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "admin", "notifications"] }, "body": { "mode": "raw", "raw": "{\n  \"message\": \"Announcement text\",\n  \"collegeId\": 1\n}" } } },
+        { "name": "Get Student Performance", "request": { "method": "GET", "header": [ { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/admin/performance?studentId=1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "admin", "performance"], "query": [ { "key": "studentId", "value": "1" } ] } } },
+        {
+          "name": "Assign Exam to Student/Batch",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/admin/assign-exam", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "admin", "assign-exam"] },
+            "body": { "mode": "raw", "raw": "{\n  \"examId\": 1,\n  \"studentIds\": [1,2,3]\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Faculty Panel",
+      "item": [
+        { "name": "Add Faculty", "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/faculty", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "faculty"] }, "body": { "mode": "raw", "raw": "{\n  \"name\": \"Faculty Name\",\n  \"email\": \"faculty@example.com\",\n  \"subject\": \"Math\",\n  \"collegeId\": 1\n}" } } },
+        { "name": "Get All Faculty", "request": { "method": "GET", "header": [ { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/faculty?collegeId=1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "faculty"], "query": [ { "key": "collegeId", "value": "1" } ] } } },
+        { "name": "Update Faculty", "request": { "method": "PUT", "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/faculty/1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "faculty", "1"] }, "body": { "mode": "raw", "raw": "{\n  \"name\": \"Updated Name\"\n}" } } },
+        { "name": "Delete Faculty", "request": { "method": "DELETE", "header": [ { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/faculty/1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "faculty", "1"] } } },
+        {
+          "name": "Assign Subject to Faculty",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/faculty/1/assign-subject", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "faculty", "1", "assign-subject"] },
+            "body": { "mode": "raw", "raw": "{\n  \"subject\": \"Physics\"\n}" }
+          }
+        },
+        {
+          "name": "Create Exam (Faculty)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/faculty/exams", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "faculty", "exams"] },
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Midterm\",\n  \"description\": \"Midterm exam\"\n}" }
+          }
+        },
+        {
+          "name": "Upload Content (Faculty)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/faculty/content", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "faculty", "content"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Master Admin Panel",
+      "item": [
+        { "name": "Get Platform Overview", "request": { "method": "GET", "header": [ { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/master/overview", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "master", "overview"] } } },
+        { "name": "Create College (Master)", "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/master/colleges", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "master", "colleges"] }, "body": { "mode": "raw", "raw": "{\n  \"name\": \"New College\",\n  \"email\": \"college@example.com\",\n  \"address\": \"123 Main St\"\n}" } } },
+        { "name": "Approve College (Master)", "request": { "method": "PUT", "header": [ { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/master/approve-college/1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "master", "approve-college", "1"] } } },
+        { "name": "Assign Admin to College", "request": { "method": "PUT", "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/master/assign-admin", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "master", "assign-admin"] }, "body": { "mode": "raw", "raw": "{\n  \"collegeId\": 1,\n  \"userId\": 2\n}" } } },
+        { "name": "Get All Colleges (Master)", "request": { "method": "GET", "header": [ { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/master/colleges", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "master", "colleges"] } } },
+        { "name": "Get College Details (Master)", "request": { "method": "GET", "header": [ { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/master/college/1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "master", "college", "1"] } } },
+        {
+          "name": "Block/Deactivate College",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/master/college/1/block", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "master", "college", "1", "block"] }
+          }
+        },
+        {
+          "name": "Block/Deactivate User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/master/user/1/block", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "master", "user", "1", "block"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "LSRW & SWOT",
+      "item": [
+        { "name": "LSRW Evaluate", "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/lsrw/evaluate", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "lsrw", "evaluate"] }, "body": { "mode": "raw", "raw": "{\n  \"audioUrl\": \"https://example.com/audio.mp3\",\n  \"text\": \"Sample text\"\n}" } } },
+        { "name": "SWOT Analyze", "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/swot/analyze", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "swot", "analyze"] }, "body": { "mode": "raw", "raw": "{\n  \"strengths\": \"...\",\n  \"weaknesses\": \"...\",\n  \"opportunities\": \"...\",\n  \"threats\": \"...\"\n}" } } },
+        {
+          "name": "Get LSRW & SWOT Results History",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/lsrw-swot/results?userId=1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "lsrw-swot", "results"], "query": [ { "key": "userId", "value": "1" } ] }
+          }
+        },
+        {
+          "name": "Store SWOT Feedback Report",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/swot/feedback", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "swot", "feedback"] },
+            "body": { "mode": "raw", "raw": "{\n  \"userId\": 1,\n  \"report\": \"Feedback details...\"\n}" }
+          }
+        },
+        {
+          "name": "Get SWOT Feedback Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/swot/feedback/1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "swot", "feedback", "1"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Exams & Results",
+      "item": [
+        {
+          "name": "Create Exam",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/exams", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "exams"] },
+            "body": { "mode": "raw", "raw": "{\n  \"title\": \"Sample Exam\",\n  \"description\": \"Exam description\"\n}" }
+          }
+        },
+        {
+          "name": "Get Exam Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/exams/1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "exams", "1"] }
+          }
+        },
+        {
+          "name": "Submit Result",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/results", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "results"] },
+            "body": { "mode": "raw", "raw": "{\n  \"examId\": 1,\n  \"studentId\": 1,\n  \"score\": 95\n}" }
+          }
+        },
+        {
+          "name": "Get Student Results",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/results/student/1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "results", "student", "1"] }
+          }
+        },
+        {
+          "name": "Get Exam Results",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/results/exam/1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "results", "exam", "1"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "Get Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/notifications", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "notifications"] }
+          }
+        },
+        {
+          "name": "Send Exam Alert Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/notifications", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "notifications"] },
+            "body": { "mode": "raw", "raw": "{\n  \"type\": \"exam_alert\",\n  \"message\": \"Exam tomorrow!\"\n}" }
+          }
+        },
+        {
+          "name": "Send Deadline Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/notifications", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "notifications"] },
+            "body": { "mode": "raw", "raw": "{\n  \"type\": \"deadline\",\n  \"message\": \"Submit assignment!\"\n}" }
+          }
+        },
+        {
+          "name": "Send Feedback Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "url": { "raw": "http://localhost:5000/api/notifications", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "notifications"] },
+            "body": { "mode": "raw", "raw": "{\n  \"type\": \"feedback\",\n  \"message\": \"Your test feedback is available.\"\n}" }
+          }
+        }
+      ]
+    }
+  ]
+}

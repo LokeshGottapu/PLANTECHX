@@ -3,7 +3,7 @@ const { dbConfig } = require('../config/database');
 const crypto = require('crypto');
 
 const createCollege = async (req, res) => {
-    let connection;
+    let connection = null;
     try {
         const { name, email, address } = req.body;
 
@@ -13,21 +13,23 @@ const createCollege = async (req, res) => {
 
         connection = await mysql.createConnection(dbConfig);
 
-        // Check if college already exists
         const [existingColleges] = await connection.execute(
             'SELECT * FROM colleges WHERE name = ? OR email = ?',
             [name, email]
         );
 
-        if (existingColleges.length > 0) {
+        if (existingColleges && existingColleges.length > 0) {
             return res.status(409).json({ message: 'College already exists' });
         }
 
-        // Insert new college
         const [result] = await connection.execute(
             'INSERT INTO colleges (name, email, address) VALUES (?, ?, ?)',
             [name, email, address]
         );
+
+        if (!result) {
+            return res.status(500).json({ message: 'Error creating college' });
+        }
 
         res.status(201).json({
             message: 'College created successfully',
@@ -44,13 +46,17 @@ const createCollege = async (req, res) => {
 };
 
 const getColleges = async (req, res) => {
-    let connection;
+    let connection = null;
     try {
         connection = await mysql.createConnection(dbConfig);
 
         const [colleges] = await connection.execute(
             'SELECT * FROM colleges ORDER BY created_at DESC'
         );
+
+        if (colleges === null) {
+            return res.status(404).json({ message: 'No colleges found' });
+        }
 
         res.json(colleges);
     } catch (error) {
@@ -64,16 +70,28 @@ const getColleges = async (req, res) => {
 };
 
 const approveCollege = async (req, res) => {
-    let connection;
+    let connection = null;
     try {
         const { collegeId } = req.params;
 
+        if (!collegeId) {
+            return res.status(400).json({ message: 'College ID is required' });
+        }
+
         connection = await mysql.createConnection(dbConfig);
+
+        if (!connection) {
+            return res.status(500).json({ message: 'Error connecting to database' });
+        }
 
         const [result] = await connection.execute(
             'UPDATE colleges SET status = ? WHERE college_id = ?',
             ['approved', collegeId]
         );
+
+        if (result === null) {
+            return res.status(404).json({ message: 'College not found' });
+        }
 
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'College not found' });
@@ -91,7 +109,7 @@ const approveCollege = async (req, res) => {
 };
 
 const assignCollegeAdmin = async (req, res) => {
-    let connection;
+    let connection = null;
     try {
         const { collegeId, userId } = req.body;
 
@@ -101,11 +119,19 @@ const assignCollegeAdmin = async (req, res) => {
 
         connection = await mysql.createConnection(dbConfig);
 
+        if (!connection) {
+            return res.status(500).json({ message: 'Error connecting to database' });
+        }
+
         // Update user role to admin
         const [result] = await connection.execute(
             'UPDATE users SET role = ? WHERE userId = ?',
             ['admin', userId]
         );
+
+        if (result === null) {
+            return res.status(404).json({ message: 'User not found' });
+        }
 
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'User not found' });
@@ -123,7 +149,7 @@ const assignCollegeAdmin = async (req, res) => {
 };
 
 const assignExamToCollege = async (req, res) => {
-    let connection;
+    let connection = null;
     try {
         const { collegeId, examId } = req.body;
 
@@ -133,13 +159,17 @@ const assignExamToCollege = async (req, res) => {
 
         connection = await mysql.createConnection(dbConfig);
 
+        if (!connection) {
+            return res.status(500).json({ message: 'Error connecting to database' });
+        }
+
         // Check if college and exam exist
         const [colleges] = await connection.execute(
             'SELECT * FROM colleges WHERE college_id = ?',
             [collegeId]
         );
 
-        if (colleges.length === 0) {
+        if (!colleges || colleges.length === 0) {
             return res.status(404).json({ message: 'College not found' });
         }
 
@@ -148,7 +178,7 @@ const assignExamToCollege = async (req, res) => {
             [examId]
         );
 
-        if (exams.length === 0) {
+        if (!exams || exams.length === 0) {
             return res.status(404).json({ message: 'Exam not found' });
         }
 
@@ -164,7 +194,7 @@ const assignExamToCollege = async (req, res) => {
 };
 
 const grantLSRWAccess = async (req, res) => {
-    let connection;
+    let connection = null;
     try {
         const { collegeId } = req.body;
 
@@ -174,13 +204,17 @@ const grantLSRWAccess = async (req, res) => {
 
         connection = await mysql.createConnection(dbConfig);
 
+        if (!connection) {
+            return res.status(500).json({ message: 'Error connecting to database' });
+        }
+
         // Check if college exists
         const [colleges] = await connection.execute(
             'SELECT * FROM colleges WHERE college_id = ?',
             [collegeId]
         );
 
-        if (colleges.length === 0) {
+        if (!colleges || colleges.length === 0) {
             return res.status(404).json({ message: 'College not found' });
         }
 
@@ -196,11 +230,15 @@ const grantLSRWAccess = async (req, res) => {
 };
 
 const getCollegePerformance = async (req, res) => {
-    let connection;
+    let connection = null;
     try {
         const { collegeId } = req.params;
         const { startDate, endDate } = req.query;
         
+        if (!collegeId) {
+            return res.status(400).json({ message: 'College ID is required' });
+        }
+
         let query = `
             SELECT 
                 e.exam_name,
@@ -228,6 +266,10 @@ const getCollegePerformance = async (req, res) => {
         query += ' GROUP BY e.exam_id, e.exam_name ORDER BY e.exam_name';
 
         connection = await mysql.createConnection(dbConfig);
+        if (!connection) {
+            return res.status(500).json({ message: 'Error connecting to database' });
+        }
+
         const [results] = await connection.execute(query, params);
 
         res.json({
@@ -248,6 +290,166 @@ const getCollegePerformance = async (req, res) => {
     }
 };
 
+// Get details of a single college by ID
+const getCollegeById = async (req, res) => {
+    let connection = null;
+    try {
+        const { collegeId } = req.params;
+        if (!collegeId) {
+            return res.status(400).json({ message: 'College ID is required' });
+        }
+        connection = await mysql.createConnection(dbConfig);
+        if (!connection) {
+            return res.status(500).json({ message: 'Error connecting to database' });
+        }
+        const [colleges] = await connection.execute(
+            'SELECT * FROM colleges WHERE college_id = ?',
+            [collegeId]
+        );
+        await connection.end();
+        if (!colleges || colleges.length === 0) {
+            return res.status(404).json({ message: 'College not found' });
+        }
+        res.json(colleges[0]);
+    } catch (error) {
+        console.error('Get college by ID error:', error);
+        res.status(500).json({ message: 'Error fetching college details' });
+    } finally {
+        if (connection) {
+            await connection.end();
+        }
+    }
+};
+
+// Update college info (name, code, contact, etc.)
+const updateCollege = async (req, res) => {
+    let connection = null;
+    try {
+        const { collegeId } = req.params;
+        const { name, email, address, code, contact } = req.body;
+
+        if (!collegeId) {
+            return res.status(400).json({ message: 'College ID is required' });
+        }
+
+        connection = await mysql.createConnection(dbConfig);
+        if (!connection) {
+            return res.status(500).json({ message: 'Error connecting to database' });
+        }
+
+        // Build dynamic update query
+        const fields = [];
+        const values = [];
+        if (name) { fields.push('name = ?'); values.push(name); }
+        if (email) { fields.push('email = ?'); values.push(email); }
+        if (address) { fields.push('address = ?'); values.push(address); }
+        if (code) { fields.push('code = ?'); values.push(code); }
+        if (contact) { fields.push('contact = ?'); values.push(contact); }
+
+        if (fields.length === 0) {
+            return res.status(400).json({ message: 'No fields to update' });
+        }
+
+        values.push(collegeId);
+
+        const [result] = await connection.execute(
+            `UPDATE colleges SET ${fields.join(', ')} WHERE college_id = ?`,
+            values
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'College not found or no changes made' });
+        }
+        res.json({ message: 'College updated successfully' });
+    } catch (error) {
+        console.error('Update college error:', error);
+        res.status(500).json({ message: 'Error updating college', error: error.message });
+    } finally {
+        if (connection) {
+            await connection.end();
+        }
+    }
+};
+
+// Delete a college (if inactive or invalid)
+const deleteCollege = async (req, res) => {
+    let connection = null;
+    try {
+        const { collegeId } = req.params;
+        if (!collegeId) {
+            return res.status(400).json({ message: 'College ID is required' });
+        }
+
+        connection = await mysql.createConnection(dbConfig);
+        if (!connection) {
+            return res.status(500).json({ message: 'Error connecting to database' });
+        }
+
+        const [result] = await connection.execute(
+            'DELETE FROM colleges WHERE college_id = ?',
+            [collegeId]
+        );
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'College not found' });
+        }
+
+        res.json({ message: 'College deleted successfully' });
+    } catch (error) {
+        console.error('Delete college error:', error);
+        res.status(500).json({ message: 'Error deleting college', error: error.message });
+    } finally {
+        if (connection) {
+            await connection.end();
+        }
+    }
+};
+
+// Get college stats (usage, student count, results, etc.)
+const getCollegeStats = async (req, res) => {
+    let connection;
+    try {
+        const { collegeId } = req.params;
+        if (!collegeId) {
+            return res.status(400).json({ message: 'College ID is required' });
+        }
+        connection = await mysql.createConnection(dbConfig);
+
+        if (!connection) {
+            return res.status(500).json({ message: 'Error connecting to database' });
+        }
+
+        // Example: Get student count and exam count for the college
+        const [[{ studentCount }]] = await connection.execute(
+            'SELECT COUNT(*) AS studentCount FROM users WHERE college_id = ? AND role = "student"',
+            [collegeId]
+        );
+        const [[{ examCount }]] = await connection.execute(
+            'SELECT COUNT(*) AS examCount FROM exams WHERE college_id = ?',
+            [collegeId]
+        );
+        // You can add more stats as needed
+
+        if (!studentCount || !examCount) {
+            return res.status(404).json({ message: 'College not found' });
+        }
+
+        await connection.end();
+        res.json({
+            collegeId,
+            studentCount,
+            examCount
+        });
+    } catch (error) {
+        console.error('Get college stats error:', error);
+        res.status(500).json({ message: 'Error fetching college stats', error: error.message });
+    } finally {
+        if (connection) {
+            await connection.end();
+        }
+    }
+};
+
 module.exports = {
     createCollege,
     getColleges,
@@ -255,5 +457,9 @@ module.exports = {
     assignCollegeAdmin,
     assignExamToCollege,
     grantLSRWAccess,
-    getCollegePerformance
+    getCollegePerformance,
+    getCollegeById,
+    updateCollege,
+    deleteCollege,
+    getCollegeStats
 };
