@@ -390,6 +390,36 @@
           }
         }
       ]
+    },
+    {
+      "name": "Practice Tests",
+      "item": [
+        { "name": "List Practice Tests", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }], "url": { "raw": "http://localhost:5000/api/practice-tests", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "practice-tests"] } } },
+        { "name": "Get Practice Test By ID", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }], "url": { "raw": "http://localhost:5000/api/practice-tests/1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "practice-tests", "1"] } } },
+        { "name": "Create Practice Test", "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/practice-tests", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "practice-tests"] }, "body": { "mode": "raw", "raw": "{\n  \"section\": \"arithmetic\",\n  \"topic\": \"Percentages\",\n  \"name\": \"Percentages Practice Test\",\n  \"questions\": []\n}" } } },
+        { "name": "Update Practice Test", "request": { "method": "PUT", "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/practice-tests/1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "practice-tests", "1"] }, "body": { "mode": "raw", "raw": "{\n  \"section\": \"arithmetic\",\n  \"topic\": \"Percentages\",\n  \"name\": \"Updated Test Name\",\n  \"questions\": []\n}" } } },
+        { "name": "Delete Practice Test", "request": { "method": "DELETE", "header": [ { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/practice-tests/1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "practice-tests", "1"] } } }
+      ]
+    },
+    {
+      "name": "Assessment Tests",
+      "item": [
+        { "name": "List Assessment Tests", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }], "url": { "raw": "http://localhost:5000/api/assessment-tests", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "assessment-tests"] } } },
+        { "name": "Get Assessment Test By ID", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }], "url": { "raw": "http://localhost:5000/api/assessment-tests/1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "assessment-tests", "1"] } } },
+        { "name": "Create Assessment Test", "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/assessment-tests", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "assessment-tests"] }, "body": { "mode": "raw", "raw": "{\n  \"section\": \"reasoning\",\n  \"topic\": \"Logical Reasoning\",\n  \"name\": \"Reasoning Assessment\",\n  \"questions\": []\n}" } } },
+        { "name": "Update Assessment Test", "request": { "method": "PUT", "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/assessment-tests/1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "assessment-tests", "1"] }, "body": { "mode": "raw", "raw": "{\n  \"section\": \"reasoning\",\n  \"topic\": \"Logical Reasoning\",\n  \"name\": \"Updated Assessment Name\",\n  \"questions\": []\n}" } } },
+        { "name": "Delete Assessment Test", "request": { "method": "DELETE", "header": [ { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/assessment-tests/1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "assessment-tests", "1"] } } }
+      ]
+    },
+    {
+      "name": "Company Tests",
+      "item": [
+        { "name": "List Company Tests", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }], "url": { "raw": "http://localhost:5000/api/company-tests", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "company-tests"] } } },
+        { "name": "Get Company Test By ID", "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }], "url": { "raw": "http://localhost:5000/api/company-tests/1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "company-tests", "1"] } } },
+        { "name": "Create Company Test", "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/company-tests", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "company-tests"] }, "body": { "mode": "raw", "raw": "{\n  \"company\": \"TCS\",\n  \"topic\": \"Aptitude\",\n  \"name\": \"TCS Aptitude Test\",\n  \"questions\": []\n}" } } },
+        { "name": "Update Company Test", "request": { "method": "PUT", "header": [ { "key": "Content-Type", "value": "application/json" }, { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/company-tests/1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "company-tests", "1"] }, "body": { "mode": "raw", "raw": "{\n  \"company\": \"TCS\",\n  \"topic\": \"Aptitude\",\n  \"name\": \"Updated Company Test\",\n  \"questions\": []\n}" } } },
+        { "name": "Delete Company Test", "request": { "method": "DELETE", "header": [ { "key": "Authorization", "value": "Bearer {{authToken}}" } ], "url": { "raw": "http://localhost:5000/api/company-tests/1", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["api", "company-tests", "1"] } } }
+      ]
     }
   ]
 }

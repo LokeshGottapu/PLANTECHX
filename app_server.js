@@ -26,6 +26,9 @@ const facultyRoutes = require('./routes/facultyRoutes');
 const questionRoutes = require('./routes/questionRoutes'); 
 const masterRoutes = require('./routes/masterRoutes'); 
 const aiTestRequestRoutes = require('./routes/aiTestRequestRoutes');
+const practiceTestRoutes = require('./routes/practiceTestRoutes');
+const companyTestRoutes = require('./routes/companyTestRoutes');
+const assessmentTestRoutes = require('./routes/assessmentTestRoutes'); // New route for assessment tests
 
 // 🛠️ Initialize App 
 const app = express(); 
@@ -65,6 +68,9 @@ app.use('/api/faculty', [verifyToken, checkAdmin], facultyRoutes);       // 👩
 app.use('/api/questions', verifyToken, questionRoutes);   // ❓ Questions
 app.use('/api/master', [verifyToken, checkMaster], masterRoutes);        // 🎓 Master Admin
 app.use('/api/ai-test', aiTestRequestRoutes); // AI Test Request APIs
+app.use('/api/practice-tests', verifyToken, practiceTestRoutes); // Practice Test APIs
+app.use('/api/company-tests', verifyToken, companyTestRoutes); // Company Test APIs
+app.use('/api/assessment-tests', verifyToken, assessmentTestRoutes); // Assessment Test APIs
 
 // ✅ Health Check 
 app.get('/health', (req, res) => { 

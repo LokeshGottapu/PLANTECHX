@@ -402,11 +402,52 @@ exports.getResultPdf = async (req, res) => {
     }
 };
 
+// Get all results (admin/master)
+const getAllResults = async (req, res) => {
+    let connection;
+    try {
+        connection = await mysql.createConnection(dbConfig);
+        const [results] = await connection.execute(
+            'SELECT r.*, u.name as userName, e.name as examName FROM exam_results r JOIN users u ON r.userId = u.id JOIN exams e ON r.examId = e.id ORDER BY r.submittedAt DESC'
+        );
+        await connection.end();
+        res.json({ results });
+    } catch (error) {
+        if (connection) await connection.end();
+        res.status(500).json({ message: 'Error fetching all results', error: error.message });
+    }
+};
+
+// Get results by userId (for user profile)
+const getResultsByUser = async (req, res) => {
+    const { userId } = req.params;
+    if (!userId) return res.status(400).json({ message: 'User ID is required' });
+    let connection;
+    try {
+        connection = await mysql.createConnection(dbConfig);
+        const [results] = await connection.execute(
+            'SELECT r.*, e.name as examName FROM exam_results r JOIN exams e ON r.examId = e.id WHERE r.userId = ? ORDER BY r.submittedAt DESC',
+            [userId]
+        );
+        await connection.end();
+        res.json({ results });
+    } catch (error) {
+        if (connection) await connection.end();
+        res.status(500).json({ message: 'Error fetching user results', error: error.message });
+    }
+};
+
+// Export all route handlers directly
 module.exports = {
     getResults,
     getResultById,
     createResult,
     getResultsByStudent,
     getResultsByExam,
-    submitResult
+    submitResult,
+    getHistory: exports.getHistory,
+    getSwotReport: exports.getSwotReport,
+    getResultPdf: exports.getResultPdf,
+    getAllResults,
+    getResultsByUser
 };
