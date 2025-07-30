@@ -1,12 +1,12 @@
-const { uploadToS3, deleteFromS3, bucketConfig } = require('../config/s3Config');
+const mysql = require('mysql2/promise');
+const { dbConfig } = require('../config/database');
+const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const fs = require('fs');
 const unzipper = require('unzipper');
 const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
-const mysql = require('mysql2/promise');
-const { dbConfig } = require('../config/database');
+const { uploadToS3, deleteFromS3, bucketConfig } = require('../config/s3Config');
 
 // Helper function to generate unique file key
 const generateFileKey = (file, uploadType) => {

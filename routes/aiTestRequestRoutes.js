@@ -3,20 +3,34 @@ const router = express.Router();
 const aiTestRequestController = require('../controllers/aiTestRequestController');
 const { verifyToken } = require('../middleware/auth');
 const { checkMaster } = require('../middleware/checkMaster');
+const multer = require('multer');
+const upload = multer({ dest: 'uploads/' });
 
-// Admin submits a test generation request
-router.post('/request', verifyToken, aiTestRequestController.submitAITestRequest);
+// All routes require authentication
+router.use(verifyToken);
 
-// Master admin views all pending requests
-router.get('/requests', verifyToken, checkMaster, aiTestRequestController.getPendingAITestRequests);
+// List all AI requests (master admin)
+router.get('/', checkMaster, aiTestRequestController.getAllRequests);
 
-// Master admin triggers AI test generation
-router.post('/request/:id/generate', verifyToken, checkMaster, aiTestRequestController.generateCustomTest);
+// Submit a new AI request (admin)
+router.post('/', aiTestRequestController.submitAITestRequest);
 
-// Master admin rejects a request
-router.post('/request/:id/reject', verifyToken, checkMaster, aiTestRequestController.defaultReject);
+// Update an AI request (master admin)
+router.put('/:id', checkMaster, aiTestRequestController.updateTestRequest);
 
-// Update AI test request status (Pending, Approved, Rejected)
-router.put('/request/:id/status', aiTestRequestController.updateTestRequestStatus);
+// Delete an AI request (master admin)
+router.delete('/:id', checkMaster, aiTestRequestController.deleteTestRequest);
+
+// Approve an AI request (master admin)
+router.post('/:id/approve', checkMaster, aiTestRequestController.approveTestRequest);
+
+// Reject an AI request (master admin)
+router.post('/:id/reject', checkMaster, aiTestRequestController.defaultReject);
+
+// Generate AI test (master admin)
+router.get('/:id/generate', checkMaster, aiTestRequestController.generateCustomTest);
+
+// Upload syllabus for a request (admin)
+router.post('/:id/upload-syllabus', upload.single('file'), aiTestRequestController.uploadSyllabus);
 
 module.exports = router;

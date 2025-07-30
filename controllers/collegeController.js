@@ -2,48 +2,101 @@ const mysql = require('mysql2/promise');
 const { dbConfig } = require('../config/database');
 const crypto = require('crypto');
 
-const createCollege = async (req, res) => {
-    let connection = null;
-    try {
-        const { name, email, address } = req.body;
+import React, { useState } from 'react';
+import axios from 'axios';
 
-        if (!name || !email) {
-            return res.status(400).json({ message: 'Name and email are required' });
-        }
+const CreateCollege = () => {
+    const [formData, setFormData] = useState({ name: '', email: '', address: '' });
+    const [message, setMessage] = useState('');
+    const [error, setError] = useState('');
 
-        connection = await mysql.createConnection(dbConfig);
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData({ ...formData, [name]: value });
+    };
 
-        const [existingColleges] = await connection.execute(
-            'SELECT * FROM colleges WHERE name = ? OR email = ?',
-            [name, email]
+    import React, { useState } from 'react';
+    import axios from 'axios';
+  
+    function CreateCollege() {
+        const [formData, setFormData] = useState({ name: '', email: '', address: '' });
+        const [message, setMessage] = useState('');
+        const [error, setError] = useState('');
+
+        const handleChange = (e) => {
+            const { name, value } = e.target;
+            setFormData({ ...formData, [name]: value });
+        };
+
+        const handleSubmit = async (e) => {
+            e.preventDefault();
+            try {
+                const { name, email, address } = formData;
+
+                if (!name || !email) {
+                    setError('Name and email are required');
+                    return;
+                }
+
+                const response = await axios.post('/api/colleges', { name, email, address });
+
+                setMessage(response.data.message);
+                setError('');
+            } catch (error) {
+                console.error('Create college error:', error);
+                setError(error.response?.data?.message || 'Error creating college');
+            }
+        };
+
+        return (
+            <div>
+                <form onSubmit={handleSubmit}>
+                    <div>
+                        <label>Name:</label>
+                        <input type="text" name="name" value={formData.name} onChange={handleChange} />
+                    </div>
+                    <div>
+                        <label>Email:</label>
+                        <input type="email" name="email" value={formData.email} onChange={handleChange} />
+                    </div>
+                    <div>
+                        <label>Address:</label>
+                        <input type="text" name="address" value={formData.address} onChange={handleChange} />
+                    </div>
+                    <button type="submit">Create College</button>
+                </form>
+                {message && <p>{message}</p>}
+                {error && <p style={{ color: 'red' }}>{error}</p>}
+            </div>
         );
-
-        if (existingColleges && existingColleges.length > 0) {
-            return res.status(409).json({ message: 'College already exists' });
-        }
-
-        const [result] = await connection.execute(
-            'INSERT INTO colleges (name, email, address) VALUES (?, ?, ?)',
-            [name, email, address]
-        );
-
-        if (!result) {
-            return res.status(500).json({ message: 'Error creating college' });
-        }
-
-        res.status(201).json({
-            message: 'College created successfully',
-            collegeId: result.insertId
-        });
-    } catch (error) {
-        console.error('Create college error:', error);
-        res.status(500).json({ message: 'Error creating college' });
-    } finally {
-        if (connection) {
-            await connection.end();
-        }
     }
+
+export default CreateCollege;
+
+    return (
+        <div>
+            <form onSubmit={handleSubmit}>
+                <div>
+                    <label>Name:</label>
+                    <input type="text" name="name" value={formData.name} onChange={handleChange} />
+                </div>
+                <div>
+                    <label>Email:</label>
+                    <input type="email" name="email" value={formData.email} onChange={handleChange} />
+                </div>
+                <div>
+                    <label>Address:</label>
+                    <input type="text" name="address" value={formData.address} onChange={handleChange} />
+                </div>
+                <button type="submit">Create College</button>
+            </form>
+            {message && <p>{message}</p>}
+            {error && <p style={{ color: 'red' }}>{error}</p>}
+        </div>
+    );
 };
+
+export default CreateCollege;
 
 const getColleges = async (req, res) => {
     let connection = null;
@@ -450,6 +503,168 @@ const getCollegeStats = async (req, res) => {
     }
 };
 
+// Get all batches for a college
+const getCollegeBatches = async (req, res) => {
+    let connection;
+    try {
+        const { collegeId } = req.params;
+        connection = await mysql.createConnection(dbConfig);
+        const [batches] = await connection.execute(
+            'SELECT * FROM batches WHERE college_id = ?',
+            [collegeId]
+        );
+        res.json(batches);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching batches', error: error.message });
+    } finally {
+        if (connection) await connection.end();
+    }
+};
+
+// Create a batch for a college
+const createCollegeBatch = async (req, res) => {
+    let connection;
+    try {
+        const { collegeId } = req.params;
+        const { name, start_year, end_year } = req.body;
+        if (!name) return res.status(400).json({ message: 'Batch name is required' });
+        connection = await mysql.createConnection(dbConfig);
+        const [result] = await connection.execute(
+            'INSERT INTO batches (college_id, name, start_year, end_year) VALUES (?, ?, ?, ?)',
+            [collegeId, name, start_year, end_year]
+        );
+        res.status(201).json({ message: 'Batch created', batchId: result.insertId });
+    } catch (error) {
+        res.status(500).json({ message: 'Error creating batch', error: error.message });
+    } finally {
+        if (connection) await connection.end();
+    }
+};
+
+// Get all streams for a college
+const getCollegeStreams = async (req, res) => {
+    let connection;
+    try {
+        const { collegeId } = req.params;
+        connection = await mysql.createConnection(dbConfig);
+        const [streams] = await connection.execute(
+            'SELECT * FROM streams WHERE college_id = ?',
+            [collegeId]
+        );
+        res.json(streams);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching streams', error: error.message });
+    } finally {
+        if (connection) await connection.end();
+    }
+};
+
+// Get all students for a college
+const getCollegeStudents = async (req, res) => {
+    let connection;
+    try {
+        const { collegeId } = req.params;
+        connection = await mysql.createConnection(dbConfig);
+        const [students] = await connection.execute(
+            'SELECT * FROM users WHERE college_id = ? AND role = "student"',
+            [collegeId]
+        );
+        res.json(students);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching students', error: error.message });
+    } finally {
+        if (connection) await connection.end();
+    }
+};
+
+// Get all tests for a college
+const getCollegeTests = async (req, res) => {
+    let connection;
+    try {
+        const { collegeId } = req.params;
+        connection = await mysql.createConnection(dbConfig);
+        const [tests] = await connection.execute(
+            'SELECT * FROM tests WHERE college_id = ?',
+            [collegeId]
+        );
+        res.json(tests);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching tests', error: error.message });
+    } finally {
+        if (connection) await connection.end();
+    }
+};
+
+// Assign tests to a college (example: assign multiple test IDs)
+const assignTestsToCollege = async (req, res) => {
+    let connection;
+    try {
+        const { collegeId } = req.params;
+        const { testIds } = req.body; // Array of test IDs
+        if (!Array.isArray(testIds) || testIds.length === 0) {
+            return res.status(400).json({ message: 'testIds array is required' });
+        }
+        connection = await mysql.createConnection(dbConfig);
+        for (const testId of testIds) {
+            await connection.execute(
+                'UPDATE tests SET college_id = ? WHERE test_id = ?',
+                [collegeId, testId]
+            );
+        }
+        res.json({ message: 'Tests assigned to college' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error assigning tests', error: error.message });
+    } finally {
+        if (connection) await connection.end();
+    }
+};
+
+// Get features for a college
+const getCollegeFeatures = async (req, res) => {
+    let connection;
+    try {
+        const { collegeId } = req.params;
+        connection = await mysql.createConnection(dbConfig);
+        const [features] = await connection.execute(
+            'SELECT feature, enabled FROM college_features WHERE college_id = ?',
+            [collegeId]
+        );
+        res.json(features);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching features', error: error.message });
+    } finally {
+        if (connection) await connection.end();
+    }
+};
+
+// Update features for a college
+const updateCollegeFeatures = async (req, res) => {
+    let connection;
+    try {
+        const { collegeId } = req.params;
+        const { features } = req.body; // Array of { feature, enabled }
+        if (!Array.isArray(features)) {
+            return res.status(400).json({ message: 'features array is required' });
+        }
+        connection = await mysql.createConnection(dbConfig);
+
+        // Upsert features
+        for (const { feature, enabled } of features) {
+            await connection.execute(
+                `INSERT INTO college_features (college_id, feature, enabled)
+                 VALUES (?, ?, ?)
+                 ON DUPLICATE KEY UPDATE enabled = VALUES(enabled)`,
+                [collegeId, feature, enabled ? 1 : 0]
+            );
+        }
+        res.json({ message: 'Features updated' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error updating features', error: error.message });
+    } finally {
+        if (connection) await connection.end();
+    }
+};
+
 module.exports = {
     createCollege,
     getColleges,
@@ -461,5 +676,13 @@ module.exports = {
     getCollegeById,
     updateCollege,
     deleteCollege,
-    getCollegeStats
+    getCollegeStats,
+    getCollegeBatches,
+    createCollegeBatch,
+    getCollegeStreams,
+    getCollegeStudents,
+    getCollegeTests,
+    assignTestsToCollege,
+    getCollegeFeatures,
+    updateCollegeFeatures
 };

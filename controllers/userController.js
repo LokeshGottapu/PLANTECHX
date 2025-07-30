@@ -5,6 +5,7 @@ const bcrypt = require('bcrypt');
 const mysql = require('mysql2/promise');
 const { dbConfig } = require('../config/database');
 const PasswordReset = require('../models/passwordReset');
+const nodemailer = require('nodemailer');
 
 const getAllUsers = async (req, res) => {
     let connection = null;
@@ -315,6 +316,109 @@ const resetPassword = async (req, res) => {
     }
 };
 
+const inviteUser = async (req, res) => {
+    let connection = null;
+    try {
+        const { name, email, role } = req.body;
+        if (!name || !email || !role) {
+            return res.status(400).json({ message: 'Name, email, and role are required' });
+        }
+
+        connection = await mysql.createConnection(dbConfig);
+
+        // Check if user already exists
+        const [existingUsers] = await connection.execute('SELECT * FROM users WHERE email = ?', [email]);
+        if (existingUsers.length > 0) {
+            await connection.end();
+            return res.status(409).json({ message: 'User already exists' });
+        }
+
+        // Generate random password
+        const tempPassword = crypto.randomBytes(8).toString('hex');
+        const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
+        // Create user
+        const [result] = await connection.execute(
+            'INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)',
+            [name, email, hashedPassword, role]
+        );
+
+        // Send invitation email
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASSWORD
+            }
+        });
+
+        await transporter.sendMail({
+            from: process.env.EMAIL_USER,
+            to: email,
+            subject: 'You are invited!',
+            text: `Hello ${name},\n\nYou have been invited. Your temporary password is: ${tempPassword}\nPlease log in and change your password.`
+        });
+
+        await connection.end();
+        res.status(201).json({ message: 'User invited successfully', userId: result.insertId });
+    } catch (error) {
+        if (connection) await connection.end();
+        console.error('Invite user error:', error);
+        res.status(500).json({ message: 'Error inviting user', error: error.message });
+    }
+};
+
+const getUserPermissions = async (req, res) => {
+    let connection = null;
+    try {
+        const { userId } = req.params;
+        if (!userId) return res.status(400).json({ message: 'User ID is required' });
+
+        connection = await mysql.createConnection(dbConfig);
+        const [permissions] = await connection.execute(
+            'SELECT permission FROM user_permissions WHERE user_id = ?',
+            [userId]
+        );
+        await connection.end();
+
+        res.json({ userId, permissions: permissions.map(p => p.permission) });
+    } catch (error) {
+        if (connection) await connection.end();
+        console.error('Get user permissions error:', error);
+        res.status(500).json({ message: 'Error fetching permissions', error: error.message });
+    }
+};
+
+const updateUserPermissions = async (req, res) => {
+    let connection = null;
+    try {
+        const { userId } = req.params;
+        const { permissions } = req.body; // Array of permission strings
+        if (!userId || !Array.isArray(permissions)) {
+            return res.status(400).json({ message: 'User ID and permissions array are required' });
+        }
+
+        connection = await mysql.createConnection(dbConfig);
+
+        // Remove existing permissions
+        await connection.execute('DELETE FROM user_permissions WHERE user_id = ?', [userId]);
+
+        // Insert new permissions
+        for (const perm of permissions) {
+            await connection.execute(
+                'INSERT INTO user_permissions (user_id, permission) VALUES (?, ?)', [userId, perm]
+            );
+        }
+
+        await connection.end();
+        res.json({ message: 'Permissions updated successfully' });
+    } catch (error) {
+        if (connection) await connection.end();
+        console.error('Update user permissions error:', error);
+        res.status(500).json({ message: 'Error updating permissions', error: error.message });
+    }
+};
+
 module.exports = {
     getAllUsers,
     getUserById,
@@ -322,5 +426,8 @@ module.exports = {
     updateUser,
     deleteUser,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    inviteUser,
+    getUserPermissions,
+    updateUserPermissions
 };

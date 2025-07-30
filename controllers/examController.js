@@ -1209,5 +1209,131 @@ module.exports = {
             console.error('Error in reviewIncorrectAnswers outer try-catch:', error);
             res.status(500).json({ message: 'Error reviewing answers', error: error.message });
         }
-    }
+    },
+
+    // Get all exam categories
+    getExamCategories: async (req, res) => {
+        let connection;
+        try {
+            connection = await mysql.createConnection(dbConfig);
+            const [categories] = await connection.execute('SELECT DISTINCT category FROM exams');
+            res.json(categories.map(c => c.category));
+        } catch (error) {
+            res.status(500).json({ message: 'Error fetching categories', error: error.message });
+        } finally {
+            if (connection) await connection.end();
+        }
+    },
+
+    // Get all practice exams
+    getPracticeExams: async (req, res) => {
+        let connection;
+        try {
+            connection = await mysql.createConnection(dbConfig);
+            const [exams] = await connection.execute('SELECT * FROM exams WHERE exam_type = "practice"');
+            res.json(exams);
+        } catch (error) {
+            res.status(500).json({ message: 'Error fetching practice exams', error: error.message });
+        } finally {
+            if (connection) await connection.end();
+        }
+    },
+
+    // Get all assessment exams
+    getAssessmentExams: async (req, res) => {
+        let connection;
+        try {
+            connection = await mysql.createConnection(dbConfig);
+            const [exams] = await connection.execute('SELECT * FROM exams WHERE exam_type = "assessment"');
+            res.json(exams);
+        } catch (error) {
+            res.status(500).json({ message: 'Error fetching assessment exams', error: error.message });
+        } finally {
+            if (connection) await connection.end();
+        }
+    },
+
+    // Get all mock exams
+    getMockExams: async (req, res) => {
+        let connection;
+        try {
+            connection = await mysql.createConnection(dbConfig);
+            const [exams] = await connection.execute('SELECT * FROM exams WHERE exam_type = "mock"');
+            res.json(exams);
+        } catch (error) {
+            res.status(500).json({ message: 'Error fetching mock exams', error: error.message });
+        } finally {
+            if (connection) await connection.end();
+        }
+    },
+
+    // Get all company-specific exams
+    getCompanySpecificExams: async (req, res) => {
+        let connection;
+        try {
+            connection = await mysql.createConnection(dbConfig);
+            const [exams] = await connection.execute('SELECT * FROM exams WHERE exam_type = "company-specific"');
+            res.json(exams);
+        } catch (error) {
+            res.status(500).json({ message: 'Error fetching company-specific exams', error: error.message });
+        } finally {
+            if (connection) await connection.end();
+        }
+    },
+
+    // Get exam reports
+    getExamReports: async (req, res) => {
+        let connection;
+        try {
+            const { examId } = req.params;
+            connection = await mysql.createConnection(dbConfig);
+            const [reports] = await connection.execute(
+                'SELECT * FROM user_results WHERE exam_id = ?',
+                [examId]
+            );
+            res.json(reports);
+        } catch (error) {
+            res.status(500).json({ message: 'Error fetching exam reports', error: error.message });
+        } finally {
+            if (connection) await connection.end();
+        }
+    },
+
+    // Duplicate exam
+    duplicateExam: async (req, res) => {
+        let connection;
+        try {
+            const { examId } = req.params;
+            connection = await mysql.createConnection(dbConfig);
+
+            // Get the original exam
+            const [exams] = await connection.execute('SELECT * FROM exams WHERE exam_id = ?', [examId]);
+            if (!exams || exams.length === 0) {
+                return res.status(404).json({ message: 'Exam not found' });
+            }
+            const exam = exams[0];
+
+            // Duplicate the exam
+            const [result] = await connection.execute(
+                'INSERT INTO exams (exam_name, exam_type, total_questions, duration, created_by, category) VALUES (?, ?, ?, ?, ?, ?)',
+                [exam.exam_name + ' (Copy)', exam.exam_type, exam.total_questions, exam.duration, exam.created_by, exam.category]
+            );
+            const newExamId = result.insertId;
+
+            // Duplicate questions
+            const [questions] = await connection.execute('SELECT * FROM questions WHERE exam_id = ?', [examId]);
+            for (const q of questions) {
+                await connection.execute(
+                    'INSERT INTO questions (exam_id, question_text, question_type, options, correct_answer, difficulty_level, topic) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                    [newExamId, q.question_text, q.question_type, q.options, q.correct_answer, q.difficulty_level, q.topic]
+                );
+            }
+
+            res.json({ message: 'Exam duplicated successfully', newExamId });
+        } catch (error) {
+            res.status(500).json({ message: 'Error duplicating exam', error: error.message });
+        } finally {
+            if (connection) await connection.end();
+        }
+    },
 };
